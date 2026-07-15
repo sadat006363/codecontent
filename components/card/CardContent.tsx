@@ -77,10 +77,31 @@ export default function CardContent({
     }
   };
 
+  // ===== تابع حذف علامت‌های ### و فرمت‌دهی متن =====
+  const formatSummaryText = (text: string) => {
+    if (!text) return '';
+    
+    // حذف علامت‌های ### از ابتدای خطوط
+    let formatted = text.replace(/^###\s*/gm, '');
+    
+    // حذف علامت‌های ### که با خط جدید جدا شده‌اند
+    formatted = formatted.replace(/\n###\s*/g, '\n');
+    
+    // تبدیل خطوط با - به لیست
+    formatted = formatted.replace(/^-\s*/gm, '• ');
+    
+    // تبدیل **متن** به برجسته
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    return formatted;
+  };
+
   const codePreview = getCodePreview();
   const totalLines = codeSnippet ? codeSnippet.split('\n').filter(l => l.trim()).length : 0;
-
   const isLightTheme = theme === 'light' || theme === 'white' || theme === 'lavender' || theme === 'silver';
+  
+  // ===== پردازش خلاصه برای حذف ### =====
+  const processedSummary = formatSummaryText(summary);
 
   return (
     <div className="flex-1 flex flex-col justify-center z-10 py-2">
@@ -148,12 +169,12 @@ export default function CardContent({
           </div>
         )}
 
+        {/* ===== نمایش خلاصه بدون علامت ### ===== */}
         <p 
           className="text-base leading-relaxed line-clamp-2"
           style={{ color: colors.textSecondary }}
-        >
-          {summary || 'Analysis of the provided code snippet with key insights and improvements.'}
-        </p>
+          dangerouslySetInnerHTML={{ __html: processedSummary }}
+        />
       </div>
     </div>
   );
