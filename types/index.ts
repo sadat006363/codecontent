@@ -14,6 +14,28 @@ export interface Snippet {
   created_at: string;
   username?: string | null;
   github_username?: string | null;
+
+  // ===== فیلدهای جدید برای تب Analysis (Advanced) =====
+  code_walkthrough?: any[] | null;
+  what_works_well?: string[] | null;
+  bugs_and_risky_cases?: any[] | null;
+  edge_cases?: any[] | null;
+  performance_analysis?: any | null;
+  security_analysis?: any | null;
+  production_readiness?: any | null;
+  recommended_improvements?: any[] | null;
+  improved_code?: string | null;
+  suggested_tests?: any[] | null;
+  scorecard?: any | null;
+  final_verdict_summary?: string | null;
+  final_verdict_approved?: boolean | null;
+  final_verdict_next_steps?: string | null;
+
+  // ===== فیلدهای جدید برای تب Line by Line =====
+  line_explanations?: any[] | null;
+
+  // ===== فیلدهای جدید برای تب Prompt =====
+  generated_prompt?: string | null;
 }
 
 export interface GenerateRequest {

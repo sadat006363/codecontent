@@ -116,6 +116,19 @@ export default function Home() {
     return result;
   }, []);
 
+  const updateSnippet = useCallback(async (slug: string, data: any) => {
+    const res = await fetch(`/api/update-snippet/${slug}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result.error || 'Update failed');
+    }
+    return result;
+  }, []);
+
   const handleSnippetUpdate = useCallback((data: { username: string; github_username: string }) => {
     setDisplaySnippet((prev) => {
       if (!prev) return null;
@@ -233,6 +246,13 @@ export default function Home() {
         ...prev,
         [mode]: { ...prev[mode], lineExplanations: explanations }
       }));
+
+      // ===== ذخیره در دیتابیس =====
+      if (displaySnippet?.slug) {
+        await updateSnippet(displaySnippet.slug, {
+          line_explanations: explanations,
+        });
+      }
       
       showToast(`✅ ${explanations.length || 0} line explanations generated!`);
       
@@ -243,7 +263,7 @@ export default function Home() {
     } finally {
       setIsExplaining(false);
     }
-  }, [code, language, mode]);
+  }, [code, language, mode, displaySnippet, updateSnippet]);
 
   const handleGeneratePrompt = useCallback(async () => {
     if (!code.trim()) {
@@ -291,6 +311,13 @@ export default function Home() {
         ...prev,
         [mode]: { ...prev[mode], generatedPrompt: prompt }
       }));
+
+      // ===== ذخیره در دیتابیس =====
+      if (displaySnippet?.slug) {
+        await updateSnippet(displaySnippet.slug, {
+          generated_prompt: prompt,
+        });
+      }
       
       showToast('✅ Prompt generated! Check the Prompt tab.');
       
@@ -301,7 +328,7 @@ export default function Home() {
     } finally {
       setIsGeneratingPrompt(false);
     }
-  }, [code, language, mode]);
+  }, [code, language, mode, displaySnippet, updateSnippet]);
 
   const handleClearAll = useCallback(() => {
     setCode('');
@@ -416,6 +443,21 @@ export default function Home() {
           linkedin_post,
           username: username || 'Developer',
           github_username: githubUsername || null,
+          // ===== فیلدهای جدید برای Advanced =====
+          code_walkthrough: genData.codeWalkthrough || null,
+          what_works_well: genData.whatWorksWell || null,
+          bugs_and_risky_cases: genData.bugsAndRiskyCases || null,
+          edge_cases: genData.edgeCases || null,
+          performance_analysis: genData.performanceAnalysis || null,
+          security_analysis: genData.securityAnalysis || null,
+          production_readiness: genData.productionReadiness || null,
+          recommended_improvements: genData.recommendedImprovements || null,
+          improved_code: genData.improvedCode?.code || null,
+          suggested_tests: genData.suggestedTests || null,
+          scorecard: genData.scorecard || null,
+          final_verdict_summary: genData.finalVerdict?.summary || null,
+          final_verdict_approved: genData.finalVerdict?.approved || null,
+          final_verdict_next_steps: genData.finalVerdict?.nextSteps || null,
         });
         fullAnalysisData = genData;
       } else {
@@ -434,6 +476,21 @@ export default function Home() {
           linkedin_post,
           username: username || 'Developer',
           github_username: githubUsername || null,
+          // ===== فیلدهای جدید (برای Simple/Medium null) =====
+          code_walkthrough: null,
+          what_works_well: null,
+          bugs_and_risky_cases: null,
+          edge_cases: null,
+          performance_analysis: null,
+          security_analysis: null,
+          production_readiness: null,
+          recommended_improvements: null,
+          improved_code: null,
+          suggested_tests: null,
+          scorecard: null,
+          final_verdict_summary: null,
+          final_verdict_approved: null,
+          final_verdict_next_steps: null,
         });
         fullAnalysisData = { analysis: analysisText, linkedin_post };
       }
@@ -453,6 +510,21 @@ export default function Home() {
         created_at: new Date().toISOString(),
         username: username || 'Developer',
         github_username: githubUsername || null,
+        // ===== فیلدهای جدید از saveData =====
+        code_walkthrough: saveData.code_walkthrough || null,
+        what_works_well: saveData.what_works_well || null,
+        bugs_and_risky_cases: saveData.bugs_and_risky_cases || null,
+        edge_cases: saveData.edge_cases || null,
+        performance_analysis: saveData.performance_analysis || null,
+        security_analysis: saveData.security_analysis || null,
+        production_readiness: saveData.production_readiness || null,
+        recommended_improvements: saveData.recommended_improvements || null,
+        improved_code: saveData.improved_code || null,
+        suggested_tests: saveData.suggested_tests || null,
+        scorecard: saveData.scorecard || null,
+        final_verdict_summary: saveData.final_verdict_summary || null,
+        final_verdict_approved: saveData.final_verdict_approved || null,
+        final_verdict_next_steps: saveData.final_verdict_next_steps || null,
       };
 
       setModeOutputs((prev) => ({
@@ -476,8 +548,8 @@ export default function Home() {
       if (error.name === 'AbortError') {
         console.log('Fetch aborted by user');
         setErrorMessage(null);
-        setDisplaySnippet(null);       // ✅ پاک کردن نتایج
-        setDisplayFullAnalysis(null);  // ✅ پاک کردن تحلیل
+        setDisplaySnippet(null);
+        setDisplayFullAnalysis(null);
         return;
       }
       console.error('Error:', error);

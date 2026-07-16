@@ -6,27 +6,29 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
   try {
+    const { slug } = await params;
     const body = await req.json();
-    const { slug, username, github_username } = body;
 
-    if (!slug) {
-      return NextResponse.json(
-        { error: 'Slug is required' },
-        { status: 400 }
-      );
-    }
+    // ===== فیلدهای قابل به‌روزرسانی =====
+    const {
+      username,
+      github_username,
+      line_explanations,
+      generated_prompt,
+    } = body;
 
-    // ===== Update only username and github_username =====
     const updateData: any = {};
-    if (username !== undefined) {
-      updateData.username = username;
-    }
-    if (github_username !== undefined) {
-      updateData.github_username = github_username;
-    }
+    if (username !== undefined) updateData.username = username;
+    if (github_username !== undefined) updateData.github_username = github_username;
+    if (line_explanations !== undefined) updateData.line_explanations = line_explanations;
+    if (generated_prompt !== undefined) updateData.generated_prompt = generated_prompt;
 
+    // اگر هیچ فیلدی برای به‌روزرسانی وجود نداشته باشد
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { error: 'No fields to update' },
@@ -49,18 +51,22 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    if (!data) {
+      return NextResponse.json(
+        { error: 'Snippet not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      id: data.id,
-      slug: data.slug,
-      username: data.username,
-      github_username: data.github_username,
+      data,
     });
 
   } catch (error: any) {
-    console.error('Unexpected error:', error);
+    console.error('Update error:', error);
     return NextResponse.json(
-      { error: error.message || 'Unknown error occurred' },
+      { error: error.message || 'Unknown error' },
       { status: 500 }
     );
   }

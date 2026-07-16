@@ -51,6 +51,23 @@ export async function POST(req: NextRequest) {
       linkedin_post,
       username,
       github_username,
+      // ===== فیلدهای جدید =====
+      code_walkthrough,
+      what_works_well,
+      bugs_and_risky_cases,
+      edge_cases,
+      performance_analysis,
+      security_analysis,
+      production_readiness,
+      recommended_improvements,
+      improved_code,
+      suggested_tests,
+      scorecard,
+      final_verdict_summary,
+      final_verdict_approved,
+      final_verdict_next_steps,
+      line_explanations,
+      generated_prompt,
     } = body;
 
     // ===== 3. Validate required fields =====
@@ -107,6 +124,7 @@ export async function POST(req: NextRequest) {
     const sanitizedUsername = username ? username.trim().slice(0, 50) : null;
     const sanitizedGithubUsername = github_username ? github_username.trim().slice(0, 50) : null;
 
+    // ===== 7. Build payload with new fields =====
     const payload = {
       slug,
       raw_code: sanitizedCode,
@@ -121,9 +139,26 @@ export async function POST(req: NextRequest) {
       github_username: sanitizedGithubUsername,
       is_public: true,
       user_id: null,
+      // ===== فیلدهای جدید =====
+      code_walkthrough: code_walkthrough || null,
+      what_works_well: what_works_well || null,
+      bugs_and_risky_cases: bugs_and_risky_cases || null,
+      edge_cases: edge_cases || null,
+      performance_analysis: performance_analysis || null,
+      security_analysis: security_analysis || null,
+      production_readiness: production_readiness || null,
+      recommended_improvements: recommended_improvements || null,
+      improved_code: improved_code || null,
+      suggested_tests: suggested_tests || null,
+      scorecard: scorecard || null,
+      final_verdict_summary: final_verdict_summary || null,
+      final_verdict_approved: final_verdict_approved || null,
+      final_verdict_next_steps: final_verdict_next_steps || null,
+      line_explanations: line_explanations || null,
+      generated_prompt: generated_prompt || null,
     };
 
-    // ===== 7. Save to database =====
+    // ===== 8. Save to database =====
     const { data, error } = await supabaseAdmin
       .from('snippets')
       .insert([payload])
@@ -150,6 +185,23 @@ export async function POST(req: NextRequest) {
       linkedin_post: data.linkedin_post,
       username: data.username,
       github_username: data.github_username,
+      // ===== فیلدهای جدید در پاسخ =====
+      code_walkthrough: data.code_walkthrough,
+      what_works_well: data.what_works_well,
+      bugs_and_risky_cases: data.bugs_and_risky_cases,
+      edge_cases: data.edge_cases,
+      performance_analysis: data.performance_analysis,
+      security_analysis: data.security_analysis,
+      production_readiness: data.production_readiness,
+      recommended_improvements: data.recommended_improvements,
+      improved_code: data.improved_code,
+      suggested_tests: data.suggested_tests,
+      scorecard: data.scorecard,
+      final_verdict_summary: data.final_verdict_summary,
+      final_verdict_approved: data.final_verdict_approved,
+      final_verdict_next_steps: data.final_verdict_next_steps,
+      line_explanations: data.line_explanations,
+      generated_prompt: data.generated_prompt,
       url: `/snippet/${data.slug}`,
     });
 
