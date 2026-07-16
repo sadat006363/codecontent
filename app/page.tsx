@@ -85,8 +85,8 @@ export default function Home() {
     const output = modeOutputs[newMode];
     setDisplaySnippet(output.snippet);
     setDisplayFullAnalysis(output.fullAnalysis);
-    setDisplayLineExplanations(output.lineExplanations);
-    setDisplayGeneratedPrompt(output.generatedPrompt);
+    setDisplayLineExplanations(output.lineExplanations || []);
+    setDisplayGeneratedPrompt(output.generatedPrompt || '');
     setErrorMessage(null);
   }, [modeOutputs]);
 
@@ -116,7 +116,6 @@ export default function Home() {
     return result;
   }, []);
 
-  // ===== اصلاح شده: اضافه شدن هدر x-api-key =====
   const updateSnippet = useCallback(async (slug: string, data: any) => {
     const res = await fetch(`/api/update-snippet/${slug}`, {
       method: 'PATCH',
@@ -248,9 +247,13 @@ export default function Home() {
       const explanations = data.explanations || [];
       setDisplayLineExplanations(explanations);
 
+      // ============================================================
+      // 🔥 اصلاح مهم: ذخیره توضیحات برای هر سه حالت
+      // ============================================================
       setModeOutputs((prev) => ({
-        ...prev,
-        [mode]: { ...prev[mode], lineExplanations: explanations }
+        simple: { ...prev.simple, lineExplanations: explanations },
+        medium: { ...prev.medium, lineExplanations: explanations },
+        advanced: { ...prev.advanced, lineExplanations: explanations },
       }));
 
       if (displaySnippet?.slug) {
@@ -270,7 +273,7 @@ export default function Home() {
     } finally {
       setIsExplaining(false);
     }
-  }, [code, language, mode, displaySnippet, updateSnippet, showToast]);
+  }, [code, language, displaySnippet, updateSnippet, showToast]);
 
   const handleGeneratePrompt = useCallback(async () => {
     if (!code.trim()) {
@@ -373,7 +376,6 @@ export default function Home() {
       return;
     }
 
-    // === فقط برای اعتبارسنجی از cleanCode استفاده میکنیم، ولی code رو تغییر نمیدیم ===
     const cleanCode = code
       .split('\n')
       .filter(line => line.trim() !== '')
@@ -405,7 +407,6 @@ export default function Home() {
       return;
     }
 
-    // === لغو درخواست قبلی اگر وجود داره ===
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
