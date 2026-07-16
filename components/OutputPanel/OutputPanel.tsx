@@ -83,6 +83,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       },
     }));
 
+    // ===== تابع safeString برای تبدیل ایمن مقادیر =====
     const safeString = (value: any): string => {
       if (value === null || value === undefined) return '';
       if (typeof value === 'string') return value;
@@ -101,11 +102,10 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
 
       setIsUpdating(true);
       try {
-        const response = await fetch('/api/update-snippet', {
+        const response = await fetch(`/api/update-snippet/${snippet.slug}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            slug: snippet.slug,
             username: username,
             github_username: githubUsername,
           }),
@@ -264,6 +264,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [showUsernameInput]);
 
+    // ===== توابع کپی و دانلود برای تب Analysis (حالت Advanced) =====
     const copyFullAnalysisNew = useCallback(() => {
       if (!fullAnalysis || !isAdvanced) {
         showToast('❌ No analysis to copy');
@@ -617,7 +618,15 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           />
         </div>
 
-        <OutputPanelHeader activeTab={activeTab} setActiveTab={setActiveTab} />
+        <OutputPanelHeader 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab}
+          shareUrl={publicUrl}
+          onCopyLink={() => {
+            navigator.clipboard.writeText(publicUrl);
+            showToast('✅ Link copied!');
+          }}
+        />
 
         <div className="flex-1 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-200px)] text-[#1a1a2e]">
           {/* Explanation Tab */}
