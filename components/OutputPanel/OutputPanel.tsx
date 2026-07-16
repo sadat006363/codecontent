@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { forwardRef, useImperativeHandle, useState, useEffect, useRef, useCallback } from 'react';
 import { Snippet, GenerateResponse } from '@/types';
 import { toPng } from 'html-to-image';
