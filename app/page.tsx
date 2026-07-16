@@ -13,6 +13,7 @@ import {
   MAX_CODE_LENGTH 
 } from '@/lib/constants';
 import { HomeHeader, ModeSelector, ErrorDisplay, HomeFooter } from '@/components/home';
+import Tooltip from '@/components/common/Tooltip';
 
 const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || 'https://github.com/sadat006363/Zbloue';
 
@@ -406,7 +407,41 @@ export default function Home() {
         )}
 
         <HomeHeader githubUrl={GITHUB_URL} />
-        <ModeSelector mode={mode} setMode={setMode} />
+        
+        {/* ===== Analysis Mode با Tooltip ===== */}
+        <div className="mb-4 flex items-center gap-2 flex-wrap bg-white p-3 rounded-xl border-2 border-[#d0d0d8] shadow-sm">
+          <span className="text-sm font-medium text-[#1a1a2e]">Analysis Mode:</span>
+          <div className="flex gap-2">
+            {['simple', 'medium', 'advanced'].map((m) => {
+              const tooltipText = {
+                simple: '⚡ Quick analysis for basic code review — fast and concise',
+                medium: '📊 Balanced analysis with more details and edge cases',
+                advanced: '🔬 Deep production-grade analysis with security, performance, and improvements'
+              }[m] || '';
+
+              return (
+                <Tooltip key={m} text={tooltipText} position="top">
+                  <button
+                    onClick={() => setMode(m as typeof mode)}
+                    className={`px-4 py-1.5 text-sm rounded-full border-2 transition ${
+                      mode === m
+                        ? 'bg-[#4a86f7] text-white border-[#4a86f7]'
+                        : 'bg-white text-[#4a4a6a] border-[#d0d0d8] hover:border-[#4a86f7]'
+                    }`}
+                  >
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                </Tooltip>
+              );
+            })}
+          </div>
+          <span className="text-sm md:text-base font-semibold text-[#4a86f7] ml-2 hidden sm:inline">
+            {mode === 'simple' && '⚡ Fast & concise'}
+            {mode === 'medium' && '📊 Balanced review'}
+            {mode === 'advanced' && '🔬 Deep production-grade analysis'}
+          </span>
+        </div>
+
         <ErrorDisplay message={errorMessage} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8" style={{ minHeight: 'calc(100vh - 200px)' }}>
