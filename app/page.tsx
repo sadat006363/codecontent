@@ -27,9 +27,24 @@ export default function Home() {
   const [language, setLanguage] = useState('javascript');
   const [mode, setMode] = useState<'simple' | 'medium' | 'advanced'>('simple');
   const [loading, setLoading] = useState(false);
-  const [snippet, setSnippet] = useState<Snippet | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [fullAnalysis, setFullAnalysis] = useState<GenerateResponse | null>(null);
+
+  // ===== State‌های نمایشی (که در OutputPanel نشان داده می‌شوند) =====
+  const [displaySnippet, setDisplaySnippet] = useState<Snippet | null>(null);
+  const [displayFullAnalysis, setDisplayFullAnalysis] = useState<GenerateResponse | null>(null);
+  const [displayLineExplanations, setDisplayLineExplanations] = useState<any[]>([]);
+  const [displayGeneratedPrompt, setDisplayGeneratedPrompt] = useState<string>('');
+
+  // ===== ذخیره خروجی‌های هر حالت به‌صورت جداگانه =====
+  const [modeOutputs, setModeOutputs] = useState<{
+    simple: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
+    medium: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
+    advanced: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
+  }>({
+    simple: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+    medium: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+    advanced: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+  });
 
   const [username, setUsername] = useState<string>('Developer');
   const [githubUsername, setGithubUsername] = useState<string>('');
@@ -39,11 +54,9 @@ export default function Home() {
   const [convertError, setConvertError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [lineExplanations, setLineExplanations] = useState<any[]>([]);
   const [isExplaining, setIsExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
 
-  const [generatedPrompt, setGeneratedPrompt] = useState<string>('');
   const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
 
@@ -55,24 +68,47 @@ export default function Home() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // ===== تابع تغییر حالت با پاک کردن خروجی‌ها =====
+  // ===== تابع تغییر حالت با نمایش خروجی ذخیره‌شده (در صورت وجود) =====
   const handleModeChange = useCallback((newMode: 'simple' | 'medium' | 'advanced') => {
-    // تغییر حالت
     setMode(newMode);
     
-    // پاک کردن تمام خروجی‌های قبلی
-    setSnippet(null);
-    setFullAnalysis(null);
-    setLineExplanations([]);
-    setGeneratedPrompt('');
+    // خروجی‌های ذخیره‌شده برای حالت جدید را نمایش بده
+    const output = modeOutputs[newMode];
+    setDisplaySnippet(output.snippet);
+    setDisplayFullAnalysis(output.fullAnalysis);
+    setDisplayLineExplanations(output.lineExplanations);
+    setDisplayGeneratedPrompt(output.generatedPrompt);
     setErrorMessage(null);
-    
-    // اگر تب باز است، به تب Explanation برگردان (اختیاری)
+
     if (outputPanelRef.current) {
       outputPanelRef.current.setActiveTab('explanation');
     }
+  }, [modeOutputs]);
+
+  // ===== تابع پاک کردن همه خروجی‌ها (وقتی سورس کد عوض می‌شود) =====
+  const clearAllOutputs = useCallback(() => {
+    setModeOutputs({
+      simple: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+      medium: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+      advanced: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
+    });
+    setDisplaySnippet(null);
+    setDisplayFullAnalysis(null);
+    setDisplayLineExplanations([]);
+    setDisplayGeneratedPrompt('');
+    setErrorMessage(null);
   }, []);
 
+  // ===== تشخیص تغییر سورس کد برای پاک کردن خروجی‌ها =====
+  useEffect(() => {
+    clearAllOutputs();
+    // بعد از پاک کردن، تب را به state اولیه برگردان
+    if (outputPanelRef.current) {
+      outputPanelRef.current.setActiveTab('explanation');
+    }
+  }, [code, language]); // با تغییر کد یا زبان، خروجی‌ها پاک می‌شوند
+
+  // ===== تشخیص زبان =====
   useEffect(() => {
     if (code.trim().length > 0) {
       const detected = detectLanguage(code);
@@ -96,7 +132,7 @@ export default function Home() {
   }, []);
 
   const handleSnippetUpdate = useCallback((data: { username: string; github_username: string }) => {
-    setSnippet((prev) => {
+    setDisplaySnippet((prev) => {
       if (!prev) return null;
       return {
         ...prev,
@@ -104,7 +140,15 @@ export default function Home() {
         github_username: data.github_username,
       };
     });
-  }, []);
+    // همچنین خروجی ذخیره‌شده در حالت فعلی را به‌روز کن
+    setModeOutputs((prev) => ({
+      ...prev,
+      [mode]: {
+        ...prev[mode],
+        snippet: prev[mode].snippet ? { ...prev[mode].snippet, username: data.username, github_username: data.github_username } : null,
+      }
+    }));
+  }, [mode]);
 
   const handleConvertCode = useCallback(async (targetLang: string) => {
     if (!code.trim()) {
@@ -198,9 +242,16 @@ export default function Home() {
         throw new Error(data.error || 'Failed to generate explanations');
       }
 
-      setLineExplanations(data.explanations || []);
+      const explanations = data.explanations || [];
+      setDisplayLineExplanations(explanations);
       
-      showToast(`✅ ${data.explanations?.length || 0} line explanations generated!`);
+      // ذخیره در حالت فعلی
+      setModeOutputs((prev) => ({
+        ...prev,
+        [mode]: { ...prev[mode], lineExplanations: explanations }
+      }));
+      
+      showToast(`✅ ${explanations.length || 0} line explanations generated!`);
       
     } catch (error: any) {
       console.error('Explanation error:', error);
@@ -209,7 +260,7 @@ export default function Home() {
     } finally {
       setIsExplaining(false);
     }
-  }, [code, language]);
+  }, [code, language, mode]);
 
   const handleGeneratePrompt = useCallback(async () => {
     if (!code.trim()) {
@@ -250,7 +301,13 @@ export default function Home() {
         throw new Error(data.error || 'Failed to generate prompt');
       }
 
-      setGeneratedPrompt(data.prompt);
+      const prompt = data.prompt || '';
+      setDisplayGeneratedPrompt(prompt);
+      
+      setModeOutputs((prev) => ({
+        ...prev,
+        [mode]: { ...prev[mode], generatedPrompt: prompt }
+      }));
       
       showToast('✅ Prompt generated! Check the Prompt tab.');
       
@@ -261,17 +318,14 @@ export default function Home() {
     } finally {
       setIsGeneratingPrompt(false);
     }
-  }, [code, language]);
+  }, [code, language, mode]);
 
   const handleClearAll = useCallback(() => {
     setCode('');
     setLanguage('javascript');
-    setSnippet(null);
-    setFullAnalysis(null);
-    setLineExplanations([]);
+    clearAllOutputs();
     setErrorMessage(null);
     setHoveredLine(null);
-    setGeneratedPrompt('');
     setConvertLanguage('');
     setConvertError(null);
     setIsConverting(false);
@@ -279,7 +333,7 @@ export default function Home() {
     setExplainError(null);
     setPromptError(null);
     showToast('🧹 All content cleared!');
-  }, []);
+  }, [clearAllOutputs]);
 
   const handleGenerate = useCallback(async () => {
     if (!code.trim()) {
@@ -321,13 +375,7 @@ export default function Home() {
     }
 
     setLoading(true);
-    setSnippet(null);
-    setFullAnalysis(null);
     setErrorMessage(null);
-    setLineExplanations([]);
-    setGeneratedPrompt('');
-    setExplainError(null);
-    setPromptError(null);
 
     try {
       const genRes = await fetch('/api/generate', {
@@ -344,6 +392,7 @@ export default function Home() {
       const linkedin_post = genData.linkedin_post || 'Check out this code analysis! #Zbloue';
 
       let saveData;
+      let fullAnalysisData = null;
       if (mode === 'advanced') {
         const card_title = genData.title ?? genData.card_title ?? 'Code Analysis';
         const key_concept = genData.highLevelSummary ?? genData.key_concept ?? 'No summary provided.';
@@ -369,7 +418,7 @@ export default function Home() {
           username: username || 'Developer',
           github_username: githubUsername || null,
         });
-        setFullAnalysis(genData);
+        fullAnalysisData = genData;
       } else {
         const analysisText = genData.analysis || 'No analysis generated.';
         const summaryLines = analysisText.split('\n').slice(0, 4).join('\n');
@@ -387,10 +436,10 @@ export default function Home() {
           username: username || 'Developer',
           github_username: githubUsername || null,
         });
-        setFullAnalysis({ analysis: analysisText, linkedin_post });
+        fullAnalysisData = { analysis: analysisText, linkedin_post };
       }
 
-      setSnippet({
+      const newSnippet: Snippet = {
         id: saveData.id,
         slug: saveData.slug,
         raw_code: cleanCode,
@@ -405,7 +454,22 @@ export default function Home() {
         created_at: new Date().toISOString(),
         username: username || 'Developer',
         github_username: githubUsername || null,
-      });
+      };
+
+      // ذخیره خروجی برای حالت فعلی
+      setModeOutputs((prev) => ({
+        ...prev,
+        [mode]: {
+          snippet: newSnippet,
+          fullAnalysis: fullAnalysisData,
+          lineExplanations: prev[mode].lineExplanations || [],
+          generatedPrompt: prev[mode].generatedPrompt || '',
+        }
+      }));
+
+      // نمایش خروجی فعلی
+      setDisplaySnippet(newSnippet);
+      setDisplayFullAnalysis(fullAnalysisData);
 
       if (outputPanelRef.current) {
         outputPanelRef.current.setActiveTab('explanation');
@@ -430,7 +494,7 @@ export default function Home() {
 
         <HomeHeader githubUrl={GITHUB_URL} />
         
-        {/* ===== Analysis Mode با توضیحات کامل در سمت راست ===== */}
+        {/* ===== Analysis Mode ===== */}
         <div className="mb-4 flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl border-2 border-[#d0d0d8] shadow-sm">
           <span className="text-sm font-medium text-[#1a1a2e] whitespace-nowrap">Analysis Mode:</span>
           <div className="flex gap-2">
@@ -478,19 +542,19 @@ export default function Home() {
           />
           <OutputPanel
             ref={outputPanelRef}
-            snippet={snippet}
+            snippet={displaySnippet}
             loading={loading}
-            fullAnalysis={fullAnalysis}
+            fullAnalysis={displayFullAnalysis}
             analysisMode={mode}
             onUsernameChange={setUsername}
             onGithubChange={setGithubUsername}
             onSnippetUpdate={handleSnippetUpdate}
-            lineExplanations={lineExplanations}
+            lineExplanations={displayLineExplanations}
             isExplaining={isExplaining}
             onGenerateExplanation={handleGenerateExplanation}
             hoveredLine={hoveredLine}
             onLineHover={setHoveredLine}
-            generatedPrompt={generatedPrompt}
+            generatedPrompt={displayGeneratedPrompt}
             isGeneratingPrompt={isGeneratingPrompt}
           />
         </div>
