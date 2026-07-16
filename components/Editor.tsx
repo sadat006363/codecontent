@@ -275,6 +275,13 @@ export default function Editor({
     }
   }, [onGeneratePrompt]);
 
+  // ===== تابع تبدیل با دکمه =====
+  const handleConvertClick = useCallback(() => {
+    if (convertLanguage && onConvert && canConvert) {
+      onConvert(convertLanguage);
+    }
+  }, [convertLanguage, onConvert, canConvert]);
+
   const lineHighlightExtensions = hoveredLine ? highlightLineExtension(hoveredLine) : [];
 
   return (
@@ -304,12 +311,15 @@ export default function Editor({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-4 p-3 bg-[#f1f3f5] border-b border-[#d0d0d8]">
-        <div className="flex items-center gap-2">
+      {/* ===== Toolbar ===== */}
+      <div className="flex flex-col gap-2 p-3 bg-[#f1f3f5] border-b border-[#d0d0d8]">
+        {/* ===== ردیف اول: Source Language ===== */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-[#4a4a6a] whitespace-nowrap">📝 Source Language:</span>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="bg-white text-[#1a1a2e] text-sm rounded-md px-3 py-1.5 border border-[#d0d0d8] focus:outline-none focus:ring-2 focus:ring-[#4a86f7]"
+            className="bg-white text-[#1a1a2e] text-sm rounded-md px-3 py-1 border border-[#d0d0d8] focus:outline-none focus:ring-2 focus:ring-[#4a86f7]"
           >
             {SUPPORTED_LANGUAGES.map((lang) => (
               <option key={lang.value} value={lang.value}>
@@ -319,21 +329,19 @@ export default function Editor({
           </select>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-[#1a1a2e]">🔄 Convert to:</span>
+        {/* ===== ردیف دوم: Target Language + Convert Button ===== */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-[#4a4a6a] whitespace-nowrap">🎯 Target Language:</span>
           <select
             value={convertLanguage || ''}
             onChange={(e) => {
               const newLang = e.target.value;
               if (setConvertLanguage) setConvertLanguage(newLang);
-              if (newLang && onConvert && canConvert) {
-                onConvert(newLang);
-              }
             }}
             className="bg-white text-[#1a1a2e] text-sm rounded-md px-3 py-1 border border-[#d0d0d8] focus:outline-none focus:ring-2 focus:ring-[#4a86f7] disabled:opacity-50"
             disabled={!canConvert || isConverting}
           >
-            <option value="">Select language...</option>
+            <option value="">Choose target language...</option>
             {SUPPORTED_LANGUAGES
               .filter(lang => lang.value !== language && !nonConvertible.includes(lang.value))
               .map((lang) => (
@@ -342,24 +350,49 @@ export default function Editor({
                 </option>
               ))}
           </select>
-          
+
+          {/* ===== دکمه Convert ===== */}
+          <button
+            onClick={handleConvertClick}
+            disabled={!convertLanguage || !canConvert || isConverting}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1 rounded-md transition ${
+              !convertLanguage || !canConvert || isConverting
+                ? 'bg-[#e8e8f0] text-[#a0a0b0] cursor-not-allowed border border-[#d0d0d8]'
+                : 'bg-[#4a86f7] hover:bg-[#3b6fd4] text-white border border-[#4a86f7]'
+            }`}
+            title="Click to convert code to selected language"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>{isConverting ? 'Converting...' : 'Convert'}</span>
+          </button>
+
+          {/* ===== پیام‌های وضعیت ===== */}
           {isConverting && (
             <span className="text-sm text-[#4a86f7] animate-pulse">⏳ Converting...</span>
           )}
           {convertError && (
-            <span className="text-xs text-red-500 truncate" title={convertError}>
+            <span className="text-xs text-red-500 truncate max-w-[200px]" title={convertError}>
               ⚠️ {convertError}
             </span>
           )}
-          {canConvert && !isConverting && !convertError && (
-            <span className="text-xs text-[#6c7086] whitespace-nowrap">↔️ Select a language above</span>
+          {!isConverting && !convertError && !canConvert && !code.trim() && (
+            <span className="text-xs text-[#a0a0b0] whitespace-nowrap">📝 Paste code to enable conversion</span>
           )}
-          {!canConvert && code.trim().length > 0 && nonConvertible.includes(language) && (
-            <span className="text-xs text-[#6c7086] whitespace-nowrap">⚠️ {language.toUpperCase()} cannot be converted</span>
+          {!isConverting && !convertError && !canConvert && code.trim().length > 0 && nonConvertible.includes(language) && (
+            <span className="text-xs text-[#e53935] whitespace-nowrap">⚠️ {language.toUpperCase()} cannot be converted</span>
+          )}
+          {!isConverting && !convertError && canConvert && !convertLanguage && (
+            <span className="text-xs text-[#6c7086] whitespace-nowrap">💡 Select a language and click Convert</span>
+          )}
+          {!isConverting && !convertError && canConvert && convertLanguage && (
+            <span className="text-xs text-[#4a86f7] whitespace-nowrap">🔄 Ready to convert to {convertLanguage.toUpperCase()}</span>
           )}
         </div>
       </div>
 
+      {/* ===== Action Buttons Row ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-[#f8f9fa] border-b border-[#d0d0d8]">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -423,6 +456,7 @@ export default function Editor({
         </div>
       </div>
 
+      {/* ===== Drag & Drop Overlay ===== */}
       {isDragging && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#4a86f7]/5 backdrop-blur-sm">
           <div className="w-64 h-64 rounded-2xl border-4 border-dashed border-[#4a86f7] bg-white/80 flex flex-col items-center justify-center gap-4 shadow-2xl transition-all duration-300">
@@ -453,6 +487,7 @@ export default function Editor({
         </div>
       )}
 
+      {/* ===== CodeMirror Editor ===== */}
       <div className="flex-1 overflow-hidden bg-[#fafbfc] relative">
         <CodeMirror
           value={code}
@@ -499,8 +534,6 @@ export default function Editor({
             </div>
           </div>
         )}
-        
-        {/* ===== بخش حذف‌شده: hint پایین ادیتور ===== */}
       </div>
     </div>
   );
