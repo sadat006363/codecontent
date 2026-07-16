@@ -28,6 +28,7 @@ export interface OutputPanelProps {
   hoveredLine?: number | null;
   onLineHover?: (lineNumber: number | null) => void;
   generatedPrompt?: string;
+  isGeneratingPrompt?: boolean;
   initialTab?: 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt';
 }
 
@@ -48,6 +49,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     hoveredLine,
     onLineHover,
     generatedPrompt,
+    isGeneratingPrompt = false,
     initialTab = 'explanation',
   }, ref) {
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
@@ -81,7 +83,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       },
     }));
 
-    // ===== تابع safeString =====
     const safeString = (value: any): string => {
       if (value === null || value === undefined) return '';
       if (typeof value === 'string') return value;
@@ -263,7 +264,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [showUsernameInput]);
 
-    // ===== توابع کپی و دانلود برای تب Analysis (حالت Advanced) =====
     const copyFullAnalysisNew = useCallback(() => {
       if (!fullAnalysis || !isAdvanced) {
         showToast('❌ No analysis to copy');
@@ -696,6 +696,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             <PromptTab
               snippet={snippet}
               generatedPrompt={generatedPrompt}
+              isGeneratingPrompt={isGeneratingPrompt}
               showToast={showToast}
               appUrl={appUrl}
             />

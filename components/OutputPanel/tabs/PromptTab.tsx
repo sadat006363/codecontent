@@ -5,6 +5,7 @@ import { CopyButton, DownloadButton } from '@/components/common';
 interface PromptTabProps {
   snippet: any;
   generatedPrompt: string | undefined;
+  isGeneratingPrompt?: boolean;  // ✅ اضافه شد
   showToast: (message: string) => void;
   appUrl: string;
 }
@@ -12,6 +13,7 @@ interface PromptTabProps {
 export default function PromptTab({
   snippet,
   generatedPrompt,
+  isGeneratingPrompt = false,
   showToast,
   appUrl,
 }: PromptTabProps) {
@@ -81,6 +83,18 @@ export default function PromptTab({
     URL.revokeObjectURL(url);
     showToast('✅ File downloaded!');
   };
+
+  // ===== نمایش حالت لودینگ (مشابه تب Line by Line) =====
+  if (isGeneratingPrompt) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[200px]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-4 border-[#4a86f7]/20 border-t-[#4a86f7] rounded-full animate-spin" />
+          <p className="text-[#4a4a6a] text-sm">⏳ Generating prompt...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

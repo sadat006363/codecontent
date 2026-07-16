@@ -142,7 +142,6 @@ export default function Home() {
       return;
     }
 
-    // حذف خطوط خالی برای توضیحات
     const cleanCode = code
       .split('\n')
       .filter((line: string) => line.trim() !== '')
@@ -195,7 +194,6 @@ export default function Home() {
       return;
     }
 
-    // حذف خطوط خالی برای پرامپت
     const cleanCode = code
       .split('\n')
       .filter((line: string) => line.trim() !== '')
@@ -265,13 +263,11 @@ export default function Home() {
       return;
     }
 
-    // ===== حذف خطوط خالی از کد =====
     const cleanCode = code
       .split('\n')
       .filter(line => line.trim() !== '')
       .join('\n');
 
-    // ===== به‌روزرسانی ادیتور با کد پاک‌شده =====
     if (cleanCode !== code) {
       setCode(cleanCode);
     }
@@ -444,6 +440,7 @@ export default function Home() {
             hoveredLine={hoveredLine}
             onLineHover={setHoveredLine}
             generatedPrompt={generatedPrompt}
+            isGeneratingPrompt={isGeneratingPrompt}
           />
         </div>
       </div>
