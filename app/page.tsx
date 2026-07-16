@@ -135,11 +135,17 @@ export default function Home() {
     }
   }, [code, language]);
 
+  // ===== تابع Explain با باز شدن خودکار تب =====
   const handleGenerateExplanation = useCallback(async () => {
     if (!code.trim()) {
       setExplainError('Please enter some code first.');
       showToast('❌ Please enter some code first.');
       return;
+    }
+
+    // ===== باز کردن تب Line-by-Line بلافاصله =====
+    if (outputPanelRef.current) {
+      outputPanelRef.current.setActiveTab('line-by-line');
     }
 
     const cleanCode = code
@@ -172,10 +178,6 @@ export default function Home() {
 
       setLineExplanations(data.explanations || []);
       
-      if (outputPanelRef.current) {
-        outputPanelRef.current.setActiveTab('line-by-line');
-      }
-      
       showToast(`✅ ${data.explanations?.length || 0} line explanations generated!`);
       
     } catch (error: any) {
@@ -187,11 +189,17 @@ export default function Home() {
     }
   }, [code, language]);
 
+  // ===== تابع Prompt با باز شدن خودکار تب =====
   const handleGeneratePrompt = useCallback(async () => {
     if (!code.trim()) {
       setPromptError('Please enter some code first.');
       showToast('❌ Please enter some code first.');
       return;
+    }
+
+    // ===== باز کردن تب Prompt بلافاصله =====
+    if (outputPanelRef.current) {
+      outputPanelRef.current.setActiveTab('prompt');
     }
 
     const cleanCode = code
@@ -223,10 +231,6 @@ export default function Home() {
       }
 
       setGeneratedPrompt(data.prompt);
-      
-      if (outputPanelRef.current) {
-        outputPanelRef.current.setActiveTab('prompt');
-      }
       
       showToast('✅ Prompt generated! Check the Prompt tab.');
       

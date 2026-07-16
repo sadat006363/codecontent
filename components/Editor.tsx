@@ -33,12 +33,10 @@ interface EditorProps {
   hoveredLine?: number | null;
   onLineHover?: (lineNumber: number | null) => void;
   onClear?: () => void;
-  // ===== جدید: دکمه Generate Prompt =====
   onGeneratePrompt?: () => void;
   isGeneratingPrompt?: boolean;
 }
 
-// ===== Supported languages =====
 const SUPPORTED_LANGUAGES = [
   { value: 'javascript', label: 'JavaScript', icon: '🟨' },
   { value: 'typescript', label: 'TypeScript', icon: '🔵' },
@@ -53,7 +51,6 @@ const SUPPORTED_LANGUAGES = [
   { value: 'php', label: 'PHP', icon: '🐘' },
 ];
 
-// ===== Language extensions map =====
 const languageExtensions: Record<string, any> = {
   javascript: javascript(),
   typescript: javascript({ typescript: true }),
@@ -68,7 +65,6 @@ const languageExtensions: Record<string, any> = {
   php: php(),
 };
 
-// ===== Map file extensions to languages =====
 const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   'js': 'javascript',
   'ts': 'typescript',
@@ -98,7 +94,6 @@ const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   'yml': 'yaml',
 };
 
-// ===== تابع برای ایجاد هایلایت خط در CodeMirror =====
 const highlightLineExtension = (lineNumber: number | null) => {
   if (lineNumber === null) return [];
   
@@ -145,13 +140,11 @@ export default function Editor({
   onGeneratePrompt,
   isGeneratingPrompt,
 }: EditorProps) {
-  // ===== State for drag & drop =====
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const dragCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ===== Keyboard shortcut: Ctrl+Enter =====
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -163,13 +156,11 @@ export default function Editor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onGenerate]);
 
-  // ===== Detect language from file extension =====
   const detectLanguageFromExtension = (filename: string): string | null => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     return EXTENSION_TO_LANGUAGE[ext] || null;
   };
 
-  // ===== Handle file drop =====
   const processFile = useCallback((file: File) => {
     setUploadProgress(0);
     
@@ -199,7 +190,6 @@ export default function Editor({
     reader.readAsText(file);
   }, [setCode, setLanguage]);
 
-  // ===== Drag & Drop event handlers =====
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -223,7 +213,6 @@ export default function Editor({
     }
   }, []);
 
-  // ===== Handle drop event =====
   const handleDropEvent = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -243,11 +232,9 @@ export default function Editor({
     }
   }, [processFile]);
 
-  // ===== Languages that cannot be converted =====
   const nonConvertible = ['html', 'css', 'json'];
   const canConvert = code.trim().length > 0 && !nonConvertible.includes(language);
 
-  // ===== File upload via click =====
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -260,7 +247,6 @@ export default function Editor({
     e.target.value = '';
   }, [processFile]);
 
-  // ===== Clear code =====
   const handleClearCode = useCallback(() => {
     if (code.trim()) {
       if (confirm('Are you sure you want to clear all code and results?')) {
@@ -277,21 +263,18 @@ export default function Editor({
     }
   }, [code, setCode, onClear]);
 
-  // ===== Handle explain click =====
   const handleExplainClick = useCallback(() => {
     if (onExplain) {
       onExplain();
     }
   }, [onExplain]);
 
-  // ===== Handle generate prompt click =====
   const handleGeneratePromptClick = useCallback(() => {
     if (onGeneratePrompt) {
       onGeneratePrompt();
     }
   }, [onGeneratePrompt]);
 
-  // ===== ایجاد اکستنشن هایلایت خط =====
   const lineHighlightExtensions = hoveredLine ? highlightLineExtension(hoveredLine) : [];
 
   return (
@@ -302,7 +285,6 @@ export default function Editor({
       onDragLeave={handleDragLeave}
       onDrop={handleDropEvent}
     >
-      {/* ===== Hidden file input ===== */}
       <input
         ref={fileInputRef}
         type="file"
@@ -311,7 +293,6 @@ export default function Editor({
         onChange={handleFileSelected}
       />
 
-      {/* ===== Drag & Drop Progress Bar ===== */}
       {(isDragging || uploadProgress !== null) && (
         <div className="w-full h-1 bg-[#e8e8f0] relative overflow-hidden z-20">
           <div 
@@ -323,9 +304,7 @@ export default function Editor({
         </div>
       )}
 
-      {/* ===== Toolbar - Row 1 (Language + Convert) ===== */}
       <div className="flex flex-wrap items-center gap-4 p-3 bg-[#f1f3f5] border-b border-[#d0d0d8]">
-        {/* ===== ستون اول: Language Selector ===== */}
         <div className="flex items-center gap-2">
           <select
             value={language}
@@ -340,7 +319,6 @@ export default function Editor({
           </select>
         </div>
 
-        {/* ===== ستون دوم: Convert to ===== */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-medium text-[#1a1a2e]">🔄 Convert to:</span>
           <select
@@ -382,10 +360,8 @@ export default function Editor({
         </div>
       </div>
 
-      {/* ===== Toolbar - Row 2 (Actions + Stats) ===== */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-[#f8f9fa] border-b border-[#d0d0d8]">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* ===== Generate button ===== */}
           <button
             onClick={onGenerate}
             disabled={loading || !code.trim()}
@@ -397,7 +373,6 @@ export default function Editor({
             {loading ? 'Generating...' : '✨ Generate'}
           </button>
 
-          {/* ===== Explain button ===== */}
           {onExplain && (
             <button
               onClick={handleExplainClick}
@@ -407,7 +382,7 @@ export default function Editor({
                   ? 'bg-[#f1f3f5] text-[#a0a0b0] border-[#d0d0d8] cursor-not-allowed'
                   : 'bg-[#e8e8f0] hover:bg-[#d0d0d8] text-[#1a1a2e] border-[#d0d0d8] hover:border-[#4a86f7]'
               }`}
-              title="Explain code line by line"
+              title="Explain code line by line" // ✅ Tooltip اضافه شد
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -416,7 +391,6 @@ export default function Editor({
             </button>
           )}
 
-          {/* ===== Generate Prompt button (NEW) ===== */}
           {onGeneratePrompt && (
             <button
               onClick={handleGeneratePromptClick}
@@ -426,7 +400,7 @@ export default function Editor({
                   ? 'bg-[#f1f3f5] text-[#a0a0b0] border-[#d0d0d8] cursor-not-allowed'
                   : 'bg-[#e8e8f0] hover:bg-[#d0d0d8] text-[#1a1a2e] border-[#d0d0d8] hover:border-[#4a86f7]'
               }`}
-              title="Generate prompt from code"
+              title="Generate prompt from code" // ✅ Tooltip اضافه شد
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -435,7 +409,6 @@ export default function Editor({
             </button>
           )}
 
-          {/* ===== Clear button ===== */}
           {code.trim() && (
             <button
               onClick={handleClearCode}
@@ -450,14 +423,12 @@ export default function Editor({
           )}
         </div>
 
-        {/* ===== Code Stats ===== */}
         <div className="flex items-center gap-3 text-xs text-[#4a4a6a] whitespace-nowrap">
           <span>Lines: {code.split('\n').length}</span>
           <span>Chars: {code.length}</span>
         </div>
       </div>
 
-      {/* ===== Drop Zone (Square Box) ===== */}
       {isDragging && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#4a86f7]/5 backdrop-blur-sm">
           <div className="w-64 h-64 rounded-2xl border-4 border-dashed border-[#4a86f7] bg-white/80 flex flex-col items-center justify-center gap-4 shadow-2xl transition-all duration-300">
@@ -488,7 +459,6 @@ export default function Editor({
         </div>
       )}
 
-      {/* ===== CodeMirror Editor ===== */}
       <div className="flex-1 overflow-hidden bg-[#fafbfc] relative">
         <CodeMirror
           value={code}
@@ -510,7 +480,6 @@ export default function Editor({
           placeholder="// Paste your code here... or drag & drop a file"
         />
         
-        {/* ===== Upload button in the middle (only when no code) ===== */}
         {!code.trim() && !isDragging && !uploadProgress && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
@@ -537,7 +506,6 @@ export default function Editor({
           </div>
         )}
         
-        {/* ===== Bottom hint (when code exists) ===== */}
         {!isDragging && !uploadProgress && code.trim() && (
           <div className="absolute bottom-2 right-3 text-xs text-[#a0a0b0] pointer-events-none">
             <span>📂 Drag & drop to replace</span>
