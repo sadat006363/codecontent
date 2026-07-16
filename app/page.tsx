@@ -12,10 +12,16 @@ import {
   MAX_LINES_PROMPT,
   MAX_CODE_LENGTH 
 } from '@/lib/constants';
-import { HomeHeader, ModeSelector, ErrorDisplay, HomeFooter } from '@/components/home';
-import Tooltip from '@/components/common/Tooltip';
+import { HomeHeader, ErrorDisplay, HomeFooter } from '@/components/home';
 
 const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || 'https://github.com/sadat006363/Zbloue';
+
+// ===== توضیحات کامل برای هر حالت =====
+const modeDescriptions = {
+  simple: '⚡ Quick analysis for basic code review — fast and concise. Identifies obvious syntax errors and logic flaws.',
+  medium: '📊 Balanced analysis with more details. Identifies functional bugs, edge cases (null, undefined, empty inputs), and provides actionable suggestions.',
+  advanced: '🔬 Deep production-grade analysis. Includes security review, performance analysis (Big O), edge cases, improved code, test suggestions, and a scorecard.'
+};
 
 export default function Home() {
   const [code, setCode] = useState('');
@@ -384,7 +390,6 @@ export default function Home() {
         github_username: githubUsername || null,
       });
 
-      // ===== باز کردن تب Explanation پس از Generate =====
       if (outputPanelRef.current) {
         outputPanelRef.current.setActiveTab('explanation');
       }
@@ -408,38 +413,27 @@ export default function Home() {
 
         <HomeHeader githubUrl={GITHUB_URL} />
         
-        {/* ===== Analysis Mode با Tooltip ===== */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap bg-white p-3 rounded-xl border-2 border-[#d0d0d8] shadow-sm">
-          <span className="text-sm font-medium text-[#1a1a2e]">Analysis Mode:</span>
+        {/* ===== Analysis Mode با توضیحات کامل در سمت راست ===== */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl border-2 border-[#d0d0d8] shadow-sm">
+          <span className="text-sm font-medium text-[#1a1a2e] whitespace-nowrap">Analysis Mode:</span>
           <div className="flex gap-2">
-            {['simple', 'medium', 'advanced'].map((m) => {
-              const tooltipText = {
-                simple: '⚡ Quick analysis for basic code review — fast and concise',
-                medium: '📊 Balanced analysis with more details and edge cases',
-                advanced: '🔬 Deep production-grade analysis with security, performance, and improvements'
-              }[m] || '';
-
-              return (
-                <Tooltip key={m} text={tooltipText} position="top">
-                  <button
-                    onClick={() => setMode(m as typeof mode)}
-                    className={`px-4 py-1.5 text-sm rounded-full border-2 transition ${
-                      mode === m
-                        ? 'bg-[#4a86f7] text-white border-[#4a86f7]'
-                        : 'bg-white text-[#4a4a6a] border-[#d0d0d8] hover:border-[#4a86f7]'
-                    }`}
-                  >
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </button>
-                </Tooltip>
-              );
-            })}
+            {['simple', 'medium', 'advanced'].map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m as typeof mode)}
+                className={`px-4 py-1.5 text-sm rounded-full border-2 transition ${
+                  mode === m
+                    ? 'bg-[#4a86f7] text-white border-[#4a86f7]'
+                    : 'bg-white text-[#4a4a6a] border-[#d0d0d8] hover:border-[#4a86f7]'
+                }`}
+              >
+                {m.charAt(0).toUpperCase() + m.slice(1)}
+              </button>
+            ))}
           </div>
-          <span className="text-sm md:text-base font-semibold text-[#4a86f7] ml-2 hidden sm:inline">
-            {mode === 'simple' && '⚡ Fast & concise'}
-            {mode === 'medium' && '📊 Balanced review'}
-            {mode === 'advanced' && '🔬 Deep production-grade analysis'}
-          </span>
+          <div className="flex-1 min-w-[200px] text-sm text-[#4a86f7] font-medium leading-relaxed border-l-2 border-[#d0d0d8] pl-3 ml-1">
+            {modeDescriptions[mode]}
+          </div>
         </div>
 
         <ErrorDisplay message={errorMessage} />
