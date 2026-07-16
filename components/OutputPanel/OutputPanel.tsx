@@ -1,6 +1,6 @@
 'use client';
 import { forwardRef, useImperativeHandle, useState, useEffect, useRef, useCallback } from 'react';
-import { Snippet, GenerateResponse } from '@/types';
+import { Snippet, GenerateResponse, LineExplanation } from '@/types';
 import { toPng } from 'html-to-image';
 import CardPreview from '../card/CardPreview';
 import { CardTheme, themes } from '../card/themes';
@@ -23,7 +23,7 @@ export interface OutputPanelProps {
   onUsernameChange?: (name: string) => void;
   onGithubChange?: (name: string) => void;
   onSnippetUpdate?: (data: { username: string; github_username: string }) => void;
-  lineExplanations?: any[];
+  lineExplanations?: LineExplanation[];
   isExplaining?: boolean;
   onGenerateExplanation?: () => void;
   hoveredLine?: number | null;
@@ -35,11 +35,24 @@ export interface OutputPanelProps {
 
 export type TabType = 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt' | 'all-outputs';
 
+const safeString = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return '[Object]';
+    }
+  }
+  return String(value);
+};
+
 const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputPanelProps>(
-  function OutputPanel({ 
-    snippet, 
-    loading, 
-    fullAnalysis, 
+  function OutputPanel({
+    snippet,
+    loading,
+    fullAnalysis,
     analysisMode,
     onUsernameChange,
     onGithubChange,
@@ -84,20 +97,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       },
     }));
 
-    // ===== تابع safeString برای تبدیل ایمن مقادیر =====
-    const safeString = (value: any): string => {
-      if (value === null || value === undefined) return '';
-      if (typeof value === 'string') return value;
-      if (typeof value === 'object') {
-        try {
-          return JSON.stringify(value, null, 2);
-        } catch {
-          return '[Object]';
-        }
-      }
-      return String(value);
-    };
-
     const updateSnippetInDatabase = useCallback(async (username: string, githubUsername: string) => {
       if (!snippet || !snippet.slug) return;
 
@@ -105,7 +104,10 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       try {
         const response = await fetch(`/api/update-snippet/${snippet.slug}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '',
+          },
           body: JSON.stringify({
             username: username,
             github_username: githubUsername,
@@ -118,15 +120,18 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         }
 
         const data = await response.json();
-        
+
         if (onSnippetUpdate) {
           onSnippetUpdate({ username, github_username: githubUsername });
         }
 
         showToast('✅ User info updated successfully!');
-      } catch (error: any) {
-        console.error('Update error:', error);
-        showToast(`❌ Failed to update: ${error.message}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Update failed';
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Update error:', error);
+        }
+        showToast(`❌ Failed to update: ${message}`);
       } finally {
         setIsUpdating(false);
       }
@@ -148,14 +153,18 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         });
         return dataUrl;
       } catch (error) {
-        console.error('Error generating card image:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error generating card image:', error);
+        }
         throw error;
       }
     }, []);
 
     const downloadCard = useCallback(async () => {
       if (isDownloading.current) {
-        console.log('⏳ Download already in progress...');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⏳ Download already in progress...');
+        }
         return;
       }
 
@@ -186,10 +195,12 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         link.click();
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        
+
         showToast('✅ Image downloaded!');
       } catch (error) {
-        console.error('Download failed:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Download failed:', error);
+        }
         showToast('❌ Failed to download image');
       } finally {
         isDownloading.current = false;
@@ -198,15 +209,15 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
 
     const updateCardImage = useCallback(async () => {
       if (!snippet || activeTab !== 'preview' || isUpdatingCard.current) return;
-      
+
       isUpdatingCard.current = true;
-      
+
       const newUsername = tempUsername || 'Developer';
       const newGithubUsername = tempGithubUsername || '';
-      
+
       setDisplayUsername(newUsername);
       setDisplayGithubUsername(newGithubUsername);
-      
+
       if (onUsernameChange) {
         onUsernameChange(newUsername);
       }
@@ -215,14 +226,16 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
 
       await updateSnippetInDatabase(newUsername, newGithubUsername);
-      
+
       setIsGeneratingCard(true);
       try {
         const dataUrl = await generateCardImage();
         setCardImageDataUrl(dataUrl);
         showToast('✅ Card updated successfully!');
       } catch (error) {
-        console.error('Card generation failed:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Card generation failed:', error);
+        }
         showToast('❌ Failed to generate card');
       } finally {
         setIsGeneratingCard(false);
@@ -233,7 +246,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     useEffect(() => {
       if (snippet && activeTab === 'preview' && isFirstRender.current) {
         isFirstRender.current = false;
-        
+
         if (snippet.username) {
           setDisplayUsername(snippet.username);
           setTempUsername(snippet.username);
@@ -242,14 +255,16 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           setDisplayGithubUsername(snippet.github_username);
           setTempGithubUsername(snippet.github_username);
         }
-        
+
         setIsGeneratingCard(true);
         generateCardImage()
           .then((dataUrl) => {
             setCardImageDataUrl(dataUrl);
           })
           .catch((error) => {
-            console.error('Card generation failed:', error);
+            if (process.env.NODE_ENV === 'development') {
+              console.error('Card generation failed:', error);
+            }
             showToast('❌ Failed to generate card');
           })
           .finally(() => {
@@ -265,7 +280,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [showUsernameInput]);
 
-    // ===== توابع کپی و دانلود برای تب Analysis (حالت Advanced) =====
     const copyFullAnalysisNew = useCallback(() => {
       if (!fullAnalysis || !isAdvanced) {
         showToast('❌ No analysis to copy');
@@ -417,7 +431,9 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           showToast('❌ Failed to copy');
         });
       } catch (error) {
-        console.error('Copy error:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Copy error:', error);
+        }
         showToast('❌ Failed to copy analysis');
       }
     }, [fullAnalysis, isAdvanced]);
@@ -578,7 +594,9 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         URL.revokeObjectURL(url);
         showToast('✅ Analysis downloaded!');
       } catch (error) {
-        console.error('Download error:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Download error:', error);
+        }
         showToast('❌ Failed to download');
       }
     }, [fullAnalysis, isAdvanced, snippet]);
@@ -602,7 +620,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           </div>
         )}
 
-        {/* Hidden Card for image generation */}
         <div className="absolute left-[-9999px] top-[-9999px]">
           <CardPreview
             ref={cardRef}
@@ -619,17 +636,16 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           />
         </div>
 
-        <OutputPanelHeader 
-          activeTab={activeTab} 
+        <OutputPanelHeader
+          activeTab={activeTab}
           setActiveTab={setActiveTab}
         />
 
         <div className="flex-1 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-200px)] text-[#1a1a2e]">
-          {/* Explanation Tab */}
           {activeTab === 'explanation' && (
-            <ExplanationTab 
-              snippet={snippet} 
-              isAdvanced={isAdvanced} 
+            <ExplanationTab
+              snippet={snippet}
+              isAdvanced={isAdvanced}
               quickAnalysisText={quickAnalysisText}
               analysisText={snippet.what_this_code_does || ''}
               debugAnalysis={snippet.debug_analysis || ''}
@@ -639,16 +655,14 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             />
           )}
 
-          {/* LinkedIn Tab */}
           {activeTab === 'linkedin' && (
-            <LinkedInTab 
+            <LinkedInTab
               linkedinPost={snippet.linkedin_post || ''}
               shareUrl={publicUrl}
               showToast={showToast}
             />
           )}
 
-          {/* Preview Tab */}
           {activeTab === 'preview' && (
             <PreviewTab
               snippet={snippet}
@@ -671,7 +685,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             />
           )}
 
-          {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <AnalysisTab
               fullAnalysis={fullAnalysis}
@@ -683,7 +696,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             />
           )}
 
-          {/* Line-by-Line Tab */}
           {activeTab === 'line-by-line' && (
             <LineByLineTab
               snippet={snippet}
@@ -696,7 +708,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             />
           )}
 
-          {/* Prompt Tab */}
           {activeTab === 'prompt' && (
             <PromptTab
               snippet={snippet}
@@ -707,7 +718,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             />
           )}
 
-          {/* All Outputs Tab */}
           {activeTab === 'all-outputs' && (
             <AllOutputsTab
               snippet={snippet}

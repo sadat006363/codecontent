@@ -47,7 +47,7 @@ const CardPreview = forwardRef<HTMLDivElement, CardPreviewProps>(
       <div
         ref={ref}
         className={`w-[1200px] h-[630px] ${colors.backgroundGradient} ${colors.background} p-8 flex flex-col font-sans relative overflow-hidden shadow-2xl rounded-2xl`}
-        style={{ fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}
+        style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         suppressHydrationWarning
       >
         <CardBackground theme={theme} />

@@ -1,6 +1,15 @@
 import OpenAI from 'openai';
 
+// ===== Check API Key =====
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY is not defined in environment variables');
+}
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// ===== Model configuration =====
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_TIMEOUT = parseInt(process.env.OPENAI_TIMEOUT || '30000', 10);
 
 export const SIMPLE_PROMPT = `
 You are a fast, concise code assistant. Analyze the provided code snippet quickly.
@@ -146,20 +155,36 @@ export const generateEducationalContent = async (
   }
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Language: ${language}\n\nCode:\n${code}` }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.3,
-    });
+    // ===== AbortController with timeout =====
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, OPENAI_TIMEOUT);
+
+    const response = await openai.chat.completions.create(
+      {
+        model: OPENAI_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Language: ${language}\n\nCode:\n${code}` },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+      },
+      { signal: controller.signal }
+    );
+
+    clearTimeout(timeoutId);
 
     const content = response.choices[0].message.content || '{}';
     return JSON.parse(content);
-  } catch (error) {
-    console.error('OpenAI API error:', error);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('OpenAI request timed out after 30 seconds');
+    }
+    if (process.env.NODE_ENV === 'development') {
+      console.error('OpenAI API error:', error);
+    }
     throw new Error('Failed to generate analysis. Please try again.');
   }
 };

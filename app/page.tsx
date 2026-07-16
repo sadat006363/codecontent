@@ -1,22 +1,22 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Editor from '@/components/Editor';
 import OutputPanel from '@/components/OutputPanel';
 import { Snippet, GenerateResponse } from '@/types';
 import { detectLanguage } from '@/lib/languageDetector';
 import { isCodeLike } from '@/lib/utils';
-import { 
-  MAX_LINES_GENERATE, 
-  MAX_LINES_EXPLAIN, 
+import {
+  MAX_LINES_GENERATE,
+  MAX_LINES_EXPLAIN,
   MAX_LINES_PROMPT,
-  MAX_CODE_LENGTH 
+  MAX_CODE_LENGTH,
 } from '@/lib/constants';
 import { HomeHeader, ErrorDisplay, HomeFooter } from '@/components/home';
 
 const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || 'https://github.com/sadat006363/Zbloue';
 
-const modeDescriptions = {
+const MODE_DESCRIPTIONS = {
   simple: '⚡ Quick analysis for basic code review — fast and concise. Identifies obvious syntax errors and logic flaws.',
   medium: '📊 Balanced analysis with more details. Identifies functional bugs, edge cases (null, undefined, empty inputs), and provides actionable suggestions.',
   advanced: '🔬 Deep production-grade analysis. Includes security review, performance analysis (Big O), edge cases, improved code, test suggestions, and a scorecard.'
@@ -36,9 +36,9 @@ export default function Home() {
   const [displayGeneratedPrompt, setDisplayGeneratedPrompt] = useState<string>('');
 
   const [modeOutputs, setModeOutputs] = useState<{
-    simple: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
-    medium: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
-    advanced: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; }
+    simple: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; };
+    medium: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; };
+    advanced: { snippet: Snippet | null; fullAnalysis: GenerateResponse | null; lineExplanations: any[]; generatedPrompt: string; };
   }>({
     simple: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
     medium: { snippet: null, fullAnalysis: null, lineExplanations: [], generatedPrompt: '' },
@@ -62,20 +62,10 @@ export default function Home() {
   const [hoveredLine, setHoveredLine] = useState<number | null>(null);
   const outputPanelRef = useRef<any>(null);
 
-  const showToast = (message: string) => {
+  const showToast = useCallback((message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
-  };
-
-  const handleModeChange = useCallback((newMode: 'simple' | 'medium' | 'advanced') => {
-    setMode(newMode);
-    const output = modeOutputs[newMode];
-    setDisplaySnippet(output.snippet);
-    setDisplayFullAnalysis(output.fullAnalysis);
-    setDisplayLineExplanations(output.lineExplanations);
-    setDisplayGeneratedPrompt(output.generatedPrompt);
-    setErrorMessage(null);
-  }, [modeOutputs]);
+  }, []);
 
   const clearAllOutputs = useCallback(() => {
     setModeOutputs({
@@ -90,9 +80,19 @@ export default function Home() {
     setErrorMessage(null);
   }, []);
 
+  const handleModeChange = useCallback((newMode: 'simple' | 'medium' | 'advanced') => {
+    setMode(newMode);
+    const output = modeOutputs[newMode];
+    setDisplaySnippet(output.snippet);
+    setDisplayFullAnalysis(output.fullAnalysis);
+    setDisplayLineExplanations(output.lineExplanations);
+    setDisplayGeneratedPrompt(output.generatedPrompt);
+    setErrorMessage(null);
+  }, [modeOutputs]);
+
   useEffect(() => {
     clearAllOutputs();
-  }, [code, language]);
+  }, [code, language, clearAllOutputs]);
 
   useEffect(() => {
     if (code.trim().length > 0) {
@@ -116,11 +116,14 @@ export default function Home() {
     return result;
   }, []);
 
-  // ===== اصلاح مسیر updateSnippet =====
+  // ===== اصلاح شده: اضافه شدن هدر x-api-key =====
   const updateSnippet = useCallback(async (slug: string, data: any) => {
     const res = await fetch(`/api/update-snippet/${slug}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.NEXT_PUBLIC_API_KEY || '',
+      },
       body: JSON.stringify(data),
     });
     const result = await res.json();
@@ -191,15 +194,17 @@ export default function Home() {
       setLanguage(targetLang);
       setConvertLanguage('');
       showToast(`✅ Code converted to ${targetLang.toUpperCase()} successfully!`);
-      
-    } catch (error: any) {
-      console.error('Conversion error:', error);
-      setConvertError(error.message || 'Failed to convert code');
-      showToast(`❌ ${error.message || 'Conversion failed'}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to convert code';
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Conversion error:', error);
+      }
+      setConvertError(message);
+      showToast(`❌ ${message}`);
     } finally {
       setIsConverting(false);
     }
-  }, [code, language]);
+  }, [code, language, showToast]);
 
   const handleGenerateExplanation = useCallback(async () => {
     if (!code.trim()) {
@@ -242,7 +247,7 @@ export default function Home() {
 
       const explanations = data.explanations || [];
       setDisplayLineExplanations(explanations);
-      
+
       setModeOutputs((prev) => ({
         ...prev,
         [mode]: { ...prev[mode], lineExplanations: explanations }
@@ -253,17 +258,19 @@ export default function Home() {
           line_explanations: explanations,
         });
       }
-      
+
       showToast(`✅ ${explanations.length || 0} line explanations generated!`);
-      
-    } catch (error: any) {
-      console.error('Explanation error:', error);
-      setExplainError(error.message || 'Failed to generate explanations');
-      showToast(`❌ ${error.message || 'Failed to generate explanations'}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to generate explanations';
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Explanation error:', error);
+      }
+      setExplainError(message);
+      showToast(`❌ ${message}`);
     } finally {
       setIsExplaining(false);
     }
-  }, [code, language, mode, displaySnippet, updateSnippet]);
+  }, [code, language, mode, displaySnippet, updateSnippet, showToast]);
 
   const handleGeneratePrompt = useCallback(async () => {
     if (!code.trim()) {
@@ -306,7 +313,7 @@ export default function Home() {
 
       const prompt = data.prompt || '';
       setDisplayGeneratedPrompt(prompt);
-      
+
       setModeOutputs((prev) => ({
         ...prev,
         [mode]: { ...prev[mode], generatedPrompt: prompt }
@@ -317,17 +324,19 @@ export default function Home() {
           generated_prompt: prompt,
         });
       }
-      
+
       showToast('✅ Prompt generated! Check the Prompt tab.');
-      
-    } catch (error: any) {
-      console.error('Prompt generation error:', error);
-      setPromptError(error.message || 'Failed to generate prompt');
-      showToast(`❌ ${error.message || 'Failed to generate prompt'}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to generate prompt';
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Prompt generation error:', error);
+      }
+      setPromptError(message);
+      showToast(`❌ ${message}`);
     } finally {
       setIsGeneratingPrompt(false);
     }
-  }, [code, language, mode, displaySnippet, updateSnippet]);
+  }, [code, language, mode, displaySnippet, updateSnippet, showToast]);
 
   const handleClearAll = useCallback(() => {
     setCode('');
@@ -347,7 +356,7 @@ export default function Home() {
     }
     setLoading(false);
     showToast('🧹 All content cleared!');
-  }, [clearAllOutputs]);
+  }, [clearAllOutputs, showToast]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -356,7 +365,7 @@ export default function Home() {
       setLoading(false);
       showToast('⏹️ Generation stopped by user');
     }
-  }, []);
+  }, [showToast]);
 
   const handleGenerate = useCallback(async () => {
     if (!code.trim()) {
@@ -364,14 +373,11 @@ export default function Home() {
       return;
     }
 
+    // === فقط برای اعتبارسنجی از cleanCode استفاده میکنیم، ولی code رو تغییر نمیدیم ===
     const cleanCode = code
       .split('\n')
       .filter(line => line.trim() !== '')
       .join('\n');
-
-    if (cleanCode !== code) {
-      setCode(cleanCode);
-    }
 
     if (!cleanCode.trim()) {
       setErrorMessage('Please enter valid code.');
@@ -379,7 +385,9 @@ export default function Home() {
     }
 
     const isCode = isCodeLike(cleanCode);
-    console.log('isCodeLike result:', isCode);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('isCodeLike result:', isCode);
+    }
 
     if (!isCode) {
       setErrorMessage('⚠️ The input does not appear to be valid source code. Please paste your code and try again.');
@@ -397,6 +405,10 @@ export default function Home() {
       return;
     }
 
+    // === لغو درخواست قبلی اگر وجود داره ===
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     abortControllerRef.current = new AbortController();
     setLoading(true);
     setErrorMessage(null);
@@ -539,22 +551,28 @@ export default function Home() {
       if (outputPanelRef.current) {
         outputPanelRef.current.setActiveTab('explanation');
       }
-
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Fetch aborted by user');
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Fetch aborted by user');
+        }
         setErrorMessage(null);
         setDisplaySnippet(null);
         setDisplayFullAnalysis(null);
         return;
       }
-      console.error('Error:', error);
-      setErrorMessage(error.message || 'Unknown error occurred.');
+      const message = error instanceof Error ? error.message : 'Unknown error occurred.';
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error:', error);
+      }
+      setErrorMessage(message);
     } finally {
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [code, language, mode, saveSnippet, username, githubUsername]);
+  }, [code, language, mode, saveSnippet, username, githubUsername, showToast]);
+
+  const modeDescription = useMemo(() => MODE_DESCRIPTIONS[mode], [mode]);
 
   return (
     <main className="min-h-screen bg-[#f8f9fa] p-4 md:p-6 flex flex-col">
@@ -566,7 +584,7 @@ export default function Home() {
         )}
 
         <HomeHeader githubUrl={GITHUB_URL} />
-        
+
         <div className="mb-4 flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl border-2 border-[#d0d0d8] shadow-sm">
           <span className="text-sm font-medium text-[#1a1a2e] whitespace-nowrap">Analysis Mode:</span>
           <div className="flex gap-2">
@@ -585,7 +603,7 @@ export default function Home() {
             ))}
           </div>
           <div className="flex-1 min-w-[200px] text-sm text-[#4a86f7] font-medium leading-relaxed border-l-2 border-[#d0d0d8] pl-3 ml-1">
-            {modeDescriptions[mode]}
+            {modeDescription}
           </div>
         </div>
 

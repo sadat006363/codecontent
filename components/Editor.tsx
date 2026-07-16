@@ -97,25 +97,25 @@ const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 
 const highlightLineExtension = (lineNumber: number | null) => {
   if (lineNumber === null) return [];
-  
+
   return [
     EditorView.decorations.of((view) => {
       const doc = view.state.doc;
       if (lineNumber > doc.lines) {
         return new RangeSetBuilder<Decoration>().finish();
       }
-      
+
       const line = doc.line(lineNumber);
       const builder = new RangeSetBuilder<Decoration>();
-      
+
       const decoration = Decoration.line({
         attributes: {
           style: 'background-color: rgba(74, 134, 247, 0.15); border-left: 3px solid #4a86f7; display: block;',
         },
       });
-      
+
       builder.add(line.from, line.from, decoration);
-      
+
       return builder.finish();
     }),
   ];
@@ -165,7 +165,7 @@ export default function Editor({
 
   const processFile = useCallback((file: File) => {
     setUploadProgress(0);
-    
+
     const reader = new FileReader();
     reader.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -186,6 +186,9 @@ export default function Editor({
       }
     };
     reader.onerror = () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('File read error:', reader.error);
+      }
       alert('❌ Failed to read file. Please try again.');
       setUploadProgress(null);
     };
@@ -286,7 +289,7 @@ export default function Editor({
   const lineHighlightExtensions = hoveredLine ? highlightLineExtension(hoveredLine) : [];
 
   return (
-    <div 
+    <div
       className="h-full flex flex-col bg-white rounded-xl border border-[#d0d0d8] overflow-hidden shadow-sm relative"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -303,9 +306,9 @@ export default function Editor({
 
       {(isDragging || uploadProgress !== null) && (
         <div className="w-full h-1 bg-[#e8e8f0] relative overflow-hidden z-20">
-          <div 
+          <div
             className={`h-full ${uploadProgress === 100 ? 'bg-[#43a047]' : 'bg-[#4a86f7]'} transition-all duration-300 ease-out`}
-            style={{ 
+            style={{
               width: uploadProgress !== null ? `${uploadProgress}%` : '100%',
             }}
           />
@@ -431,7 +434,6 @@ export default function Editor({
             </button>
           )}
 
-          {/* ===== دکمه Stop (بدون آیکون) ===== */}
           {loading && onStop && (
             <button
               onClick={onStop}
@@ -474,7 +476,7 @@ export default function Editor({
             </div>
             {uploadProgress !== null && uploadProgress < 100 && (
               <div className="w-48 h-2 bg-[#e8e8f0] rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-[#4a86f7] transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 />
@@ -483,7 +485,7 @@ export default function Editor({
             {uploadProgress === 100 && (
               <div className="flex items-center gap-2 text-[#43a047]">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                 </svg>
                 <span className="font-medium">Uploaded!</span>
               </div>
@@ -512,7 +514,7 @@ export default function Editor({
           }}
           placeholder=""
         />
-        
+
         {!code.trim() && !isDragging && !uploadProgress && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
