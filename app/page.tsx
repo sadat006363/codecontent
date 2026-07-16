@@ -22,6 +22,16 @@ const MODE_DESCRIPTIONS = {
   advanced: '🔬 Deep production-grade analysis. Includes security review, performance analysis (Big O), edge cases, improved code, test suggestions, and a scorecard.'
 };
 
+// ============================================================
+// 🔥 تابع کمکی برای حذف خطوط خالی
+// ============================================================
+const removeEmptyLines = (text: string): string => {
+  return text
+    .split('\n')
+    .filter(line => line.trim() !== '')
+    .join('\n');
+};
+
 export default function Home() {
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('javascript');
@@ -150,8 +160,13 @@ export default function Home() {
     }));
   }, [mode]);
 
+  // ============================================================
+  // 🔥 اصلاح: حذف خطوط خالی در تبدیل کد
+  // ============================================================
   const handleConvertCode = useCallback(async (targetLang: string) => {
-    if (!code.trim()) {
+    const trimmedCode = removeEmptyLines(code);
+    
+    if (!trimmedCode.trim()) {
       setConvertError('Please enter some code first.');
       showToast('❌ Please enter some code first.');
       return;
@@ -177,7 +192,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: code,
+          code: trimmedCode,
           sourceLanguage: language,
           targetLanguage: targetLang,
         }),
@@ -189,7 +204,9 @@ export default function Home() {
         throw new Error(data.error || 'Conversion failed');
       }
 
-      setCode(data.convertedCode);
+      // ===== به‌روزرسانی ادیتور با کد فشرده =====
+      const convertedCode = removeEmptyLines(data.convertedCode);
+      setCode(convertedCode);
       setLanguage(targetLang);
       setConvertLanguage('');
       showToast(`✅ Code converted to ${targetLang.toUpperCase()} successfully!`);
@@ -205,23 +222,28 @@ export default function Home() {
     }
   }, [code, language, showToast]);
 
+  // ============================================================
+  // 🔥 اصلاح: حذف خطوط خالی در توضیح خط به خط
+  // ============================================================
   const handleGenerateExplanation = useCallback(async () => {
-    if (!code.trim()) {
+    const trimmedCode = removeEmptyLines(code);
+    
+    if (!trimmedCode.trim()) {
       setExplainError('Please enter some code first.');
       showToast('❌ Please enter some code first.');
       return;
+    }
+
+    // ===== به‌روزرسانی ادیتور با کد فشرده =====
+    if (trimmedCode !== code) {
+      setCode(trimmedCode);
     }
 
     if (outputPanelRef.current) {
       outputPanelRef.current.setActiveTab('line-by-line');
     }
 
-    const cleanCode = code
-      .split('\n')
-      .filter((line: string) => line.trim() !== '')
-      .join('\n');
-
-    const lines = cleanCode.split('\n').filter((line: string) => line.trim().length > 0);
+    const lines = trimmedCode.split('\n').filter((line: string) => line.trim().length > 0);
     if (lines.length > MAX_LINES_EXPLAIN) {
       setExplainError(`Code exceeds ${MAX_LINES_EXPLAIN} lines. Please shorten your code for line-by-line explanation.`);
       showToast(`❌ Code exceeds ${MAX_LINES_EXPLAIN} lines. Please shorten your code.`);
@@ -235,7 +257,7 @@ export default function Home() {
       const res = await fetch('/api/explain-line-by-line', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: cleanCode, language }),
+        body: JSON.stringify({ code: trimmedCode, language }),
       });
 
       const data = await res.json();
@@ -247,9 +269,7 @@ export default function Home() {
       const explanations = data.explanations || [];
       setDisplayLineExplanations(explanations);
 
-      // ============================================================
-      // 🔥 اصلاح مهم: ذخیره توضیحات برای هر سه حالت
-      // ============================================================
+      // ===== ذخیره توضیحات برای هر سه حالت =====
       setModeOutputs((prev) => ({
         simple: { ...prev.simple, lineExplanations: explanations },
         medium: { ...prev.medium, lineExplanations: explanations },
@@ -275,23 +295,28 @@ export default function Home() {
     }
   }, [code, language, displaySnippet, updateSnippet, showToast]);
 
+  // ============================================================
+  // 🔥 اصلاح: حذف خطوط خالی در تولید پرامپت
+  // ============================================================
   const handleGeneratePrompt = useCallback(async () => {
-    if (!code.trim()) {
+    const trimmedCode = removeEmptyLines(code);
+    
+    if (!trimmedCode.trim()) {
       setPromptError('Please enter some code first.');
       showToast('❌ Please enter some code first.');
       return;
+    }
+
+    // ===== به‌روزرسانی ادیتور با کد فشرده =====
+    if (trimmedCode !== code) {
+      setCode(trimmedCode);
     }
 
     if (outputPanelRef.current) {
       outputPanelRef.current.setActiveTab('prompt');
     }
 
-    const cleanCode = code
-      .split('\n')
-      .filter((line: string) => line.trim() !== '')
-      .join('\n');
-
-    const lines = cleanCode.split('\n').filter((line: string) => line.trim().length > 0);
+    const lines = trimmedCode.split('\n').filter((line: string) => line.trim().length > 0);
     if (lines.length > MAX_LINES_PROMPT) {
       setPromptError(`Code exceeds ${MAX_LINES_PROMPT} lines. Please shorten your code for prompt generation.`);
       showToast(`❌ Code exceeds ${MAX_LINES_PROMPT} lines. Please shorten your code.`);
@@ -305,7 +330,7 @@ export default function Home() {
       const res = await fetch('/api/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: cleanCode, language }),
+        body: JSON.stringify({ code: trimmedCode, language }),
       });
 
       const data = await res.json();
@@ -370,25 +395,21 @@ export default function Home() {
     }
   }, [showToast]);
 
+  // ============================================================
+  // 🔥 اصلاح اصلی: حذف خطوط خالی در جنریت
+  // ============================================================
   const handleGenerate = useCallback(async () => {
-    if (!code.trim()) {
-      setErrorMessage('Please enter your code.');
-      return;
-    }
+    // ===== 1. حذف خطوط خالی =====
+    const cleanCode = removeEmptyLines(code);
 
-    // ===== حذف خطوط خالی =====
-    const cleanCode = code
-      .split('\n')
-      .filter(line => line.trim() !== '')
-      .join('\n');
-
-    // ===== به‌روزرسانی ادیتور با کد فشرده =====
+    // ===== 2. به‌روزرسانی ادیتور =====
     if (cleanCode !== code) {
       setCode(cleanCode);
     }
 
+    // ===== 3. اعتبارسنجی =====
     if (!cleanCode.trim()) {
-      setErrorMessage('Please enter valid code.');
+      setErrorMessage('Please enter your code.');
       return;
     }
 
@@ -413,7 +434,7 @@ export default function Home() {
       return;
     }
 
-    // === لغو درخواست قبلی اگر وجود داره ===
+    // ===== 4. لغو درخواست قبلی =====
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
