@@ -140,7 +140,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, cardImageDataUrl]);
 
-    // ===== NEW: Avatar upload handler =====
+    // ===== NEW: Avatar upload handler (database updated by API) =====
     const handleUploadAvatar = useCallback(async (file: File) => {
       if (!snippet?.slug) {
         showToast('❌ No snippet available');
@@ -161,10 +161,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         const data = await response.json();
         if (data.success) {
           setAvatarUrl(data.avatarUrl);
-          // Update snippet in database
-          await updateSnippetInDatabase(snippet.slug, {
-            avatar_url: data.avatarUrl,
-          });
+          // The API already saves the avatar_url in the database, so no extra update needed.
           showToast('✅ Avatar uploaded successfully!');
         } else {
           throw new Error(data.error || 'Upload failed');
