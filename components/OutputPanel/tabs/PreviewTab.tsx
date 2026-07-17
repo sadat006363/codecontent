@@ -1,3 +1,4 @@
+// components/OutputPanel/tabs/PreviewTab.tsx
 'use client';
 import { useState, useEffect } from 'react';
 import { CardTheme } from '@/components/card/themes';
@@ -18,13 +19,17 @@ interface PreviewTabProps {
   isUpdating: boolean;
   updateCardImage: () => void;
   showToast: (message: string) => void;
-  publicUrl: string;          // ← این از OutputPanel می‌آید
+  publicUrl: string;
   appUrl: string;
   downloadCard: () => void;
   savedImageUrl?: string | null;
   isUploading?: boolean;
   hasUploaded?: boolean;
   onUploadImage?: () => Promise<void>;
+  // ============================================================
+  // 🔥 پروپ جدید: cardPageUrl که از والد دریافت می‌شود
+  // ============================================================
+  cardPageUrl: string;
 }
 
 const themes: CardTheme[] = [
@@ -74,6 +79,7 @@ export default function PreviewTab({
   isUploading = false,
   hasUploaded = false,
   onUploadImage,
+  cardPageUrl, // ← دریافت از والد
 }: PreviewTabProps) {
   const [showShareDropdown, setShowShareDropdown] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -99,18 +105,8 @@ export default function PreviewTab({
   }, [cardImageDataUrl, isGeneratingCard]);
 
   // ============================================================
-  // 🔥 استخراج slug از publicUrl (بهترین روش)
-  // ============================================================
-  const slug = publicUrl.split('/').pop() || snippet?.slug || '';
-
-  // ============================================================
-  // 🔥 لینک صفحه کارت (HTML) – برای کپی قبل از آپلود
-  // ============================================================
-  const cardPageUrl = `${appUrl}/snippet/${slug}/card?theme=${selectedTheme}`;
-
-  // ============================================================
   // 🔥 دکمه کپی – اگر تصویر آپلود شده، لینک تصویر را کپی کن،
-  // در غیر این صورت لینک صفحه کارت را کپی کن (نه صفحه اسنیپت)
+  // در غیر این صورت از cardPageUrl (که از والد می‌آید) استفاده کن
   // ============================================================
   const handleCopyLink = async () => {
     const linkToCopy = localSavedImageUrl || cardPageUrl;

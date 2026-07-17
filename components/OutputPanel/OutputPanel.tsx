@@ -1,3 +1,4 @@
+// components/OutputPanel/OutputPanel.tsx
 'use client';
 import { forwardRef, useImperativeHandle, useState, useEffect, useRef, useCallback } from 'react';
 import { Snippet, GenerateResponse, LineExplanation } from '@/types';
@@ -641,6 +642,12 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     }, [fullAnalysis, isAdvanced, snippet]);
 
     const publicUrl = `${appUrl}/snippet/${snippet?.slug || ''}`;
+
+    // ============================================================
+    // 🔥 محاسبه cardPageUrl در کامپوننت والد (Single Source of Truth)
+    // ============================================================
+    const cardPageUrl = snippet?.slug ? `${appUrl}/snippet/${snippet.slug}/card?theme=${selectedTheme}` : '';
+
     const quickAnalysisText = !isAdvanced && fullAnalysis?.analysis ? fullAnalysis.analysis : null;
 
     if (loading) {
@@ -725,6 +732,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
               isUploading={isUploading}
               hasUploaded={hasUploaded}
               onUploadImage={handleUploadImage}
+              cardPageUrl={cardPageUrl} // ← پروپ جدید
             />
           )}
 
