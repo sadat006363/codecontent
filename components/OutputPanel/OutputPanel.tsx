@@ -409,841 +409,431 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           });
           content += `\n`;
         }
+
+        // ===== FIX: Performance Analysis - correctly structured =====
         if (fullAnalysis.performanceAnalysis) {
           content += `⚡ Performance Analysis:\n`;
-          if (fullAnalysis.performanceAnalysis.timeComplexity && fullAnalysis.performanceAnalysis.timeComplexity && fullAnalysis.performanceAnalysis.timeComplexity.length > 0) {
-.timeComplexity.length > 0)            content += `  Time Complexity:\n`;
- {
+          const pa = fullAnalysis.performanceAnalysis;
+          if (pa.timeComplexity && pa.timeComplexity.length > 0) {
             content += `  Time Complexity:\n`;
-            fullAnalysis.performanceAnalysis.timeComplexity            fullAnalysis.performanceAnalysis.timeComplexity.forEach((item) => {
-              content += `    • ${safeString(item.target.forEach((item) => {
-              content += `    • ${safeString(item.target)}:)}: ${safeString(item.complexity)} ( ${safeString(item.complexity)} (${safeString(item.explanation)}${safeString(item.explanation)})\n`;
+            pa.timeComplexity.forEach((item) => {
+              content += `    • ${safeString(item.target)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\n`;
             });
           }
-          if (fullAnalysis)\n`;
+          if (pa.spaceComplexity && pa.spaceComplexity.length > 0) {
+            content += `  Space Complexity:\n`;
+            pa.spaceComplexity.forEach((item) => {
+              content += `    • ${safeString(item.target)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\n`;
             });
           }
-          if (fullAnalysis.performanceAnalysis..performanceAnalysis.spaceComplexity && fullAnalysis.performanceAnalysis.spaceComplexspaceComplexity && fullAnalysis.performanceAnalysis.spaceComplexity.length > 0) {
-           ity.length > 0) {
-            content += `  Space Complexity:\n content += `  Space Complexity:\n`;
-`;
-            fullAnalysis.performanceAnalysis.spaceComplexity.forEach            fullAnalysis.performanceAnalysis.spaceComplexity.forEach((item) => {
-              content +=((item) => {
-              content += `    • ${safeString(item.target)}: `    • ${safeString(item.target ${safeString(item.complexity)} (${)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\safeString(item.explanation)})\n`;
-            });
-          }
-          if (fulln`;
-            });
-          }
-          if (fullAnalysis.performanceAnalysis.scalabilityNotes && fullAnalysis.performanceAnalysis.scalabilityNotes && fullAnalysis.performanceAnalysis.scalabilityNotesAnalysis.performanceAnalysis.scalabilityNotes.length > 0) {
-            content += ` .length > 0) {
+          if (pa.scalabilityNotes && pa.scalabilityNotes.length > 0) {
             content += `  Scalability Notes:\n`;
-            fullAnalysis Scalability Notes:\n`;
-            fullAnalysis.performanceAnalysis.scalabilityNotes.forEach.performanceAnalysis.scalabilityNotes.forEach((item) => {
-              content += `((item) => {
-              content += `       • ${safeString(item)}\n`;
-            • ${safeString(item)}\n`;
+            pa.scalabilityNotes.forEach((item) => {
+              content += `    • ${safeString(item)}\n`;
             });
-          }
-          content += `\n });
           }
           content += `\n`;
         }
-        if (fullAnalysis`;
-        }
-        if (fullAnalysis.securityAnalysis).securityAnalysis) {
-          content += `🔒 Security Analysis {
+
+        if (fullAnalysis.securityAnalysis) {
           content += `🔒 Security Analysis:\n`;
-          content += ` :\n`;
-          content += `  Severity: ${safeString(full Severity: ${safeString(fullAnalysis.securityAnalysis.securityAnalysis.severity)}\n`;
-Analysis.severity)}\n`;
-          if          if (fullAnalysis.securityAnalysis.issues && full (fullAnalysis.securityAnalysis.issues && fullAnalysis.securityAnalysis.issues.length > Analysis.securityAnalysis.issues.length > 0) {
-            content += `  Issues:\0) {
-            content += `  Issuesn`;
-            fullAnalysis.securityAnalysis.issues.forEach:\n`;
+          content += `  Severity: ${safeString(fullAnalysis.securityAnalysis.severity)}\n`;
+          if (fullAnalysis.securityAnalysis.issues && fullAnalysis.securityAnalysis.issues.length > 0) {
+            content += `  Issues:\n`;
             fullAnalysis.securityAnalysis.issues.forEach((issue) => {
-              content +=((issue) => {
-              content += `    • ${safeString(issue `    • ${safeString(issue)}\n`;
+              content += `    • ${safeString(issue)}\n`;
             });
           }
-          if ()}\n`;
-            });
-          }
-          if (fullAnalysis.securityAnalysis.recommendations && fullAnalysis.securityAnalysis.recommendations.lengthfullAnalysis.securityAnalysis.recommendations && fullAnalysis.securityAnalysis.recommendations.length > 0) {
-            content += > 0) {
+          if (fullAnalysis.securityAnalysis.recommendations && fullAnalysis.securityAnalysis.recommendations.length > 0) {
             content += `  Recommendations:\n`;
-            full `  Recommendations:\n`;
-            fullAnalysis.securityAnalysis.recommendations.forEachAnalysis.securityAnalysis.recommendations.forEach((rec) => {
+            fullAnalysis.securityAnalysis.recommendations.forEach((rec) => {
               content += `    • ${safeString(rec)}\n`;
             });
-((rec) => {
-              content += `    • ${safeString(rec)}\n`;
-                     }
-          content += `\n`;
-        });
           }
           content += `\n`;
         }
-        if (fullAnalysis.productionRead }
         if (fullAnalysis.productionReadiness) {
-          content += `🛡iness) {
-          content += `️ Production Readiness:\n`;
-          content += `  Ready: ${fullAnalysis.pro🛡️ Production Readiness:\n`;
-          content += `  Ready: ${fullAnalysis.productionReadiness.isProductionReady ? 'ductionReadiness.isProductionReady ? 'Yes' : 'No'}\nYes' : 'No'}\n`;
-          if (`;
-          if (fullAnalysis.productionReadiness.reasonsfullAnalysis.productionReadiness.reasons && fullAnalysis.productionReadiness.re && fullAnalysis.productionReadiness.reasons.length > 0) {
-            fullAnalysis.productionasons.length > 0) {
-            fullAnalysis.productionReadiness.reasons.forEach((reason)Readiness.reasons.forEach((reason) => {
-              content += `    • => {
+          content += `🛡️ Production Readiness:\n`;
+          content += `  Ready: ${fullAnalysis.productionReadiness.isProductionReady ? 'Yes' : 'No'}\n`;
+          if (fullAnalysis.productionReadiness.reasons && fullAnalysis.productionReadiness.reasons.length > 0) {
+            fullAnalysis.productionReadiness.reasons.forEach((reason) => {
               content += `    • ${safeString(reason)}\n`;
-            ${safeString(reason)}\n`;
             });
           }
-          if (fullAnalysis.productionRead });
-          }
-          if (fullAnalysis.productionReadiness.requiredChanges && fullAnalysis.proiness.requiredChanges && fullAnalysis.productionReadiness.requiredChanges.length > 0ductionReadiness.requiredChanges.length > 0) {
-            content += `  Required Changes:\) {
+          if (fullAnalysis.productionReadiness.requiredChanges && fullAnalysis.productionReadiness.requiredChanges.length > 0) {
             content += `  Required Changes:\n`;
-            fullAnalysis.productionReadn`;
             fullAnalysis.productionReadiness.requiredChanges.forEach((change) => {
-iness.requiredChanges.forEach((change) =>              content += `    • ${safeString( {
               content += `    • ${safeString(change)}\n`;
             });
           }
           content += `\n`;
         }
-change)}\n`;
-            });
-          }
-          content += `\n`;
-               if (fullAnalysis.recommendedImprovements && }
-        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements.length >  fullAnalysis.recommendedImprovements.length > 0) {
-          content0) {
+        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements.length > 0) {
           content += `🔧 Recommended Improvements:\n`;
-          fullAnalysis.re += `🔧 Recommended Improvements:\n`;
-         commendedImprovements.forEach((item fullAnalysis.recommendedImprovements.forEach((item) => {
-            content += `  [${safe) => {
-            content += `  [${safeString(item.priority)}] ${safeString(item.priority)}] ${safeString(item.improvement)}\nString(item.improvement)}\n`;
-            content += `    Reason: ${safeString(item.re`;
-            content += `    Reason: ${safeString(itemason)}\n`;
-          });
-          content.reason)}\n`;
+          fullAnalysis.recommendedImprovements.forEach((item) => {
+            content += `  [${safeString(item.priority)}] ${safeString(item.improvement)}\n`;
+            content += `    Reason: ${safeString(item.reason)}\n`;
           });
           content += `\n`;
         }
-        += `\n`;
-        }
-        if (fullAnalysis.improvedCode && full if (fullAnalysis.improvedCode &&Analysis.improvedCode.available) {
-          fullAnalysis.improvedCode.available) {
-          content += `✨ Improved Code:\n content += `✨ Improved Code:\n`;
-          content += `Notes: ${`;
-          content += `Notes: ${safeString(fullAnalysis.improvedCode.notes)}\safeString(fullAnalysis.improvedCode.notes)}\n`;
-          content += `${safeString(fullAnalysis.improvedCoden`;
-          content += `${safeString(fullAnalysis.improvedCode.code)}\.code)}\n\n`;
+        if (fullAnalysis.improvedCode && fullAnalysis.improvedCode.available) {
+          content += `✨ Improved Code:\n`;
+          content += `Notes: ${safeString(fullAnalysis.improvedCode.notes)}\n`;
+          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
         if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
           content += `🧪 Suggested Tests:\n`;
           fullAnalysis.suggestedTests.forEach((test) => {
-            content += `  • ${safen\n`;
-        }
-        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
-          content += `🧪 Suggested Tests:\n`;
-          fullAnalysis.suggestedTests.forEach((test) => {
-            content += `  • ${safeString(test.name)}\String(test.name)}\n`;
-            content +=n`;
-            content += `    Input: ${safeString(test.input)}\n `    Input: ${safeString(test.input)}\n`;
-            content += `    Expected:`;
+            content += `  • ${safeString(test.name)}\n`;
+            content += `    Input: ${safeString(test.input)}\n`;
             content += `    Expected: ${safeString(test.expectedOutput)}\n`;
-            content ${safeString(test.expectedOutput)}\n`;
- += `    Type: ${safeString(test.type)}\n            content += `    Type: ${safeString(test.type)}\n`;
-          });
-          content += `\`;
+            content += `    Type: ${safeString(test.type)}\n`;
           });
           content += `\n`;
-        }
-        if (fullAnalysis.scorecard)n`;
         }
         if (fullAnalysis.scorecard) {
-          content += `📊 Score {
           content += `📊 Scorecard:\n`;
-          const scores =card:\n`;
           const scores = fullAnalysis.scorecard;
-          content += `  Correct fullAnalysis.scorecard;
-          content += `  Correctness: ${safeString(scoresness: ${safeString(scores.correctness)}/10\n`;
-         .correctness)}/10\n`;
-          content += `  Readability: ${safeString content += `  Readability: ${safeString(scores.readability)}/(scores.readability)}/10\n`;
-          content += `  Performance: ${safe10\n`;
-          content += `  Performance:String(scores.performance)}/10\n`;
- ${safeString(scores.performance)}/10\n`;
-          content += `  Maintain          content += `  Maintainability: ${safeString(scores.maintainability)}/ability: ${safeString(scores.main10\n`;
-          content += ` tainability)}/10\n`;
-          content += `  Production Readiness: ${safeString(scores.productionRead Production Readiness: ${safeString(scores.productionReadiness)}/10\n`;
-          ifiness)}/10\n`;
-          if (scores.security !== undefined) content += ` (scores.security !== undefined) content  Security: ${safeString(scores.security)} += `  Security: ${safeString(scores.security)}/10\n`;
-          if (s/10\n`;
-          if (scores.overall) content += `  Overall: ${cores.overall) content += `safeString(scores.overall)}/10\n  Overall: ${safeString(scores.overall)}/10\n`;
-          content += ``;
+          content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
+          content += `  Readability: ${safeString(scores.readability)}/10\n`;
+          content += `  Performance: ${safeString(scores.performance)}/10\n`;
+          content += `  Maintainability: ${safeString(scores.maintainability)}/10\n`;
+          content += `  Production Readiness: ${safeString(scores.productionReadiness)}/10\n`;
+          if (scores.security !== undefined) content += `  Security: ${safeString(scores.security)}/10\n`;
+          if (scores.overall) content += `  Overall: ${safeString(scores.overall)}/10\n`;
           content += `\n`;
         }
-        if (fullAnalysis.final\n`;
-        }
         if (fullAnalysis.finalVerdict) {
-          content +=Verdict) {
-          content += `🏁 Final `🏁 Final Verdict:\n Verdict:\n`;
-          content +=`;
-          content += `  Summary: ${safeString(f `  Summary: ${safeString(fullAnalysis.finalVerdict.summary)}\n`;
-          content += `ullAnalysis.finalVerdict.summary)}\n`;
-          content += `  Approved: ${fullAnalysis.finalVerdict.app  Approved: ${fullAnalysis.finalVroved ? '✅ Yes' :erdict.approved ? '✅ Yes' : '❌ No'}\n`;
-          if ( '❌ No'}\n`;
-          if (fullAnalysis.finalVfullAnalysis.finalVerdict.nextSteps) {
-            content += `  Nexterdict.nextSteps) {
-            content += `  Next Steps: ${safeString(fullAnalysis.finalVerd Steps: ${safeString(fullAnalysis.finalVerdict.nextSteps)}\nict.nextSteps)}\n`;
-          }
-        }
-
-        navigator.clipboard`;
+          content += `🏁 Final Verdict:\n`;
+          content += `  Summary: ${safeString(fullAnalysis.finalVerdict.summary)}\n`;
+          content += `  Approved: ${fullAnalysis.finalVerdict.approved ? '✅ Yes' : '❌ No'}\n`;
+          if (fullAnalysis.finalVerdict.nextSteps) {
+            content += `  Next Steps: ${safeString(fullAnalysis.finalVerdict.nextSteps)}\n`;
           }
         }
 
         navigator.clipboard.writeText(content).then(() => {
           showToast('✅ Full analysis copied!');
-.writeText(content).then(() => {
-          showToast('✅ Full analysis        }).catch(() => {
-          showToast copied!');
         }).catch(() => {
           showToast('❌ Failed to copy');
-       ('❌ Failed to copy');
         });
       } catch (error) {
-        if (process });
-      } catch (error) {
-        if (process.env.NODE_ENV ===.env.NODE_ENV === 'development 'development') {
-          console.error('Copy') {
-          console.error('Copy error error:', error);
-        }
-        showToast('❌:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Copy error:', error);
         }
         showToast('❌ Failed to copy analysis');
-      }
-    }, [fullAnalysis, isAdvanced Failed to copy analysis');
       }
     }, [fullAnalysis, isAdvanced]);
 
     const downloadAnalysisNew = useCallback(() => {
-      if (!fullAnalysis]);
-
-    const downloadAnalysisNew = useCallback(() => {
-      if (!fullAnalysis || !isAdvanced || !isAdvanced) {
-        showToast('❌) {
-        showToast('❌ No analysis to download No analysis to download');
-        return');
+      if (!fullAnalysis || !isAdvanced) {
+        showToast('❌ No analysis to download');
         return;
       }
 
       try {
-        let content = `Z;
-      }
-
-      try {
-        let contentbloue - Code Analysis Report\n`;
- = `Zbloue - Code Analysis Report\n`;
-        content += `════════        content += `═══════════════════════════════════════\n\n══════════════════════════════`;
-        content += `📌 Title:═\n\n`;
-        content += `📌 Title: ${safeString(fullAnalysis ${safeString(fullAnalysis.title)}\n\n.title)}\n\n`;
+        let content = `Zbloue - Code Analysis Report\n`;
+        content += `═══════════════════════════════════════\n\n`;
+        content += `📌 Title: ${safeString(fullAnalysis.title)}\n\n`;
         if (fullAnalysis.highLevelSummary) {
-          content`;
-        if (fullAnalysis.highLevelSummary) {
-          content += `💡 += `💡 High-Level Summary:\n${ High-Level Summary:\n${safeString(fullAnalysis.highLevelSummary)}\n\nsafeString(fullAnalysis.highLevelSummary)}\n\n`;
+          content += `💡 High-Level Summary:\n${safeString(fullAnalysis.highLevelSummary)}\n\n`;
         }
-       `;
-        }
-        if (fullAnalysis if (fullAnalysis.codeWalkthrough && full.codeWalkthrough && fullAnalysis.codeWalkthroughAnalysis.codeWalkthrough.length > 0) {
-          content += `🧩 Code Walk.length > 0) {
+        if (fullAnalysis.codeWalkthrough && fullAnalysis.codeWalkthrough.length > 0) {
           content += `🧩 Code Walkthrough:\n`;
-          fullAnalysis.codeWalkthrough.forEach((through:\n`;
           fullAnalysis.codeWalkthrough.forEach((item) => {
-            contentitem) => {
-            content += `  • += `  • ${safeString(item.s ${safeString(item.section)}: ${ection)}: ${safeString(item.exsafeString(item.explanation)}\n`;
-          });
-          content += `\n`;
-planation)}\n`;
+            content += `  • ${safeString(item.section)}: ${safeString(item.explanation)}\n`;
           });
           content += `\n`;
         }
-        if (full        }
-        if (fullAnalysis.whatWorksWell && fullAnalysis.whatWorksWellAnalysis.whatWorksWell && fullAnalysis.what.length > 0) {
-WorksWell.length > 0) {
-          content += `✅ What Works Well:\n          content += `✅ What Works Well:\n`;
-          fullAnalysis`;
-          fullAnalysis.whatWorksWell.forEach((item).whatWorksWell.forEach((item) => {
-            content += `  • => {
+        if (fullAnalysis.whatWorksWell && fullAnalysis.whatWorksWell.length > 0) {
+          content += `✅ What Works Well:\n`;
+          fullAnalysis.whatWorksWell.forEach((item) => {
             content += `  • ${safeString(item)}\n`;
-          ${safeString(item)}\n`;
-          });
           });
           content += `\n`;
         }
-        if (fullAnalysis.bugsAndR content += `\n`;
-        }
-        if (fullAnalysis.bugsAndRiskyCases && fullAnalysis.bugsAndRiskyCases.length > 0iskyCases && fullAnalysis.bugsAndRiskyCases.length > 0) {
-         ) {
-          content += `🐛 Bugs and Ris content += `🐛 Bugs and Risky Cases:\n`;
-          fullAnalysis.bugsAndRiskyCases.forEachky Cases:\n`;
-          fullAnalysis.bugsAndRiskyCases.forEach((item) =>((item) => {
-            content += `  • ${ {
-            content += `  • ${safeString(item.issue)}\nsafeString(item.issue)}\n`;
-            content += `    Impact: ${safeString(item`;
+        if (fullAnalysis.bugsAndRiskyCases && fullAnalysis.bugsAndRiskyCases.length > 0) {
+          content += `🐛 Bugs and Risky Cases:\n`;
+          fullAnalysis.bugsAndRiskyCases.forEach((item) => {
+            content += `  • ${safeString(item.issue)}\n`;
             content += `    Impact: ${safeString(item.impact)}\n`;
-            if (item.impact)}\n`;
-            if (item.example) content += `    Example.example) content += `    Example: ${safeString(item.example)}\n`;
+            if (item.example) content += `    Example: ${safeString(item.example)}\n`;
           });
           content += `\n`;
-       : ${safeString(item.example)}\n`;
-          });
-          content += `\ }
-        if (fullAnalysis.edgeCasesn`;
         }
         if (fullAnalysis.edgeCases && fullAnalysis.edgeCases.length > 0) {
-          content += ` && fullAnalysis.edgeCases.length > 0) {
           content += `🧪 Edge Cases:\n`;
-          fullAnalysis.edge🧪 Edge Cases:\n`;
           fullAnalysis.edgeCases.forEach((item) => {
-            content += `  • ${safeString(itemCases.forEach((item) => {
-            content += `  • ${safeString.case)}\n`;
-            content += `    Current(item.case)}\n`;
-            content += `: ${safeString(item.currentBehavior)}\n`;
-            content += `    Expected:    Current: ${safeString(item.currentBehavior)}\n`;
-            content += `    ${safeString(item.expectedBehavior)}\ Expected: ${safeString(item.expectedn`;
-            content += `    Risk: ${Behavior)}\n`;
-            content += `    Risk: ${safeString(item.risk)}\nsafeString(item.risk)}\n`;
-          });
-          content += `\n`;
+            content += `  • ${safeString(item.case)}\n`;
+            content += `    Current: ${safeString(item.currentBehavior)}\n`;
+            content += `    Expected: ${safeString(item.expectedBehavior)}\n`;
+            content += `    Risk: ${safeString(item.risk)}\n`;
           });
           content += `\n`;
         }
-        if (fullAnalysis.performanceAnalysis`;
-        }
+
+        // ===== FIX: Performance Analysis - correctly structured =====
         if (fullAnalysis.performanceAnalysis) {
-          content += `⚡ Performance) {
           content += `⚡ Performance Analysis:\n`;
-          if (full Analysis:\n`;
-          if (fullAnalysis.performanceAnalysis.timeComplexity && fullAnalysis.performanceAnalysis.timeComplexityAnalysis.performanceAnalysis.timeComplexity && fullAnalysis.performanceAnalysis.timeComplexity.length > 0) {
+          const pa = fullAnalysis.performanceAnalysis;
+          if (pa.timeComplexity && pa.timeComplexity.length > 0) {
             content += `  Time Complexity:\n`;
-            fullAnalysis.performanceAnalysis.timeComplexity.forEach((item) => {
-              content += `    • ${safeString(item.target)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\n.length > 0) {
-            content += `  Time Complexity:\n`;
-            fullAnalysis.performanceAnalysis.timeComplexity.forEach((item) => {
+            pa.timeComplexity.forEach((item) => {
               content += `    • ${safeString(item.target)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\n`;
             });
           }
-          if (fullAnalysis.performance`;
+          if (pa.spaceComplexity && pa.spaceComplexity.length > 0) {
+            content += `  Space Complexity:\n`;
+            pa.spaceComplexity.forEach((item) => {
+              content += `    • ${safeString(item.target)}: ${safeString(item.complexity)} (${safeString(item.explanation)})\n`;
             });
           }
-          if (fullAnalysis.performanceAnalysis.spaceComplexity &&Analysis.spaceComplexity && fullAnalysis. fullAnalysis.performanceAnalysis.spaceComplexity.length > 0) {
-            contentperformanceAnalysis.spaceComplexity.length > 0) {
-            content += `  += `  Space Complexity:\n`;
-            fullAnalysis.performanceAnalysis.spaceComplexity.forEach((item) Space Complexity:\n`;
-            fullAnalysis.performanceAnalysis.spaceComplexity.forEach((item) => {
-              content += `    • ${safeString(item.target)}: ${safeString(item => {
-              content += `    • ${safeString(item.target)}: ${safeString(item.com.complexity)} (${safeString(itemplexity)} (${safeString(item.explanation)})\n`;
-            });
-         .explanation)})\n`;
-            }
-          if (fullAnalysis.performanceAnalysis.sc });
-          }
-          if (fullAnalysis.performanceAnalysis.scalabilityNotes && fullAnalysis.performancealabilityNotes && fullAnalysis.performanceAnalysis.scalabilityNotes.length > 0) {
-           Analysis.scalabilityNotes.length >  content += `  Scalability Notes:\n`;
-            fullAnalysis.performanceAnalysis0) {
+          if (pa.scalabilityNotes && pa.scalabilityNotes.length > 0) {
             content += `  Scalability Notes:\n`;
-            fullAnalysis.performanceAnalysis.scalabilityNotes.forEach((item) => {
-             .scalabilityNotes.forEach((item) content += `    • ${safeString(item => {
+            pa.scalabilityNotes.forEach((item) => {
               content += `    • ${safeString(item)}\n`;
             });
           }
-         )}\n`;
-            });
-          }
           content += `\n`;
         }
-        if (fullAnalysis.securityAnalysis content += `\n`;
-        }
+
         if (fullAnalysis.securityAnalysis) {
-) {
           content += `🔒 Security Analysis:\n`;
-          content += `  Severity          content += `🔒 Security Analysis:\n`;
-          content += `  Severity: ${safeString(fullAnalysis.security: ${safeString(fullAnalysis.securityAnalysisAnalysis.severity)}\n`;
-          if (fullAnalysis.severity)}\n`;
-          if (fullAnalysis.securityAnalysis.issues && fullAnalysis.security.securityAnalysis.issues && fullAnalysis.securityAnalysis.issues.length > 0) {
+          content += `  Severity: ${safeString(fullAnalysis.securityAnalysis.severity)}\n`;
+          if (fullAnalysis.securityAnalysis.issues && fullAnalysis.securityAnalysis.issues.length > 0) {
             content += `  Issues:\n`;
-Analysis.issues.length > 0) {
-            content += `  Issues:\n`;
-            fullAnalysis.securityAnalysis.issues.forEach((issue            fullAnalysis.securityAnalysis.issues.forEach((issue) => {
-              content += `   ) => {
+            fullAnalysis.securityAnalysis.issues.forEach((issue) => {
               content += `    • ${safeString(issue)}\n`;
-            • ${safeString(issue)}\n`;
             });
           }
-          if (fullAnalysis.securityAnalysis });
-          }
-          if (fullAnalysis.securityAnalysis.recommendations && fullAnalysis.security.recommendations && fullAnalysis.securityAnalysis.recommendations.length > Analysis.recommendations.length > 0) {
-            content += `  Recommendations:\n0) {
+          if (fullAnalysis.securityAnalysis.recommendations && fullAnalysis.securityAnalysis.recommendations.length > 0) {
             content += `  Recommendations:\n`;
-            fullAnalysis.securityAnalysis.recommend`;
             fullAnalysis.securityAnalysis.recommendations.forEach((rec) => {
-              content +=ations.forEach((rec) => {
-              content += `    • ${safeString(rec)}\n `    • ${safeString(rec)}\n`;
-            });
-          }
-          content +=`;
+              content += `    • ${safeString(rec)}\n`;
             });
           }
           content += `\n`;
         }
-        if (fullAnalysis.pro `\n`;
-        }
-        ifductionReadiness) {
-          content += (fullAnalysis.productionReadiness) {
-          content += `🛡️ Production Readiness `🛡️ Production Readiness:\n`;
-          content += `  Ready::\n`;
-          content += `  Ready ${fullAnalysis.productionReadiness.isProductionReady: ${fullAnalysis.productionReadiness.isProductionReady ? 'Yes' ? 'Yes' : 'No'}\n`;
-          if (fullAnalysis.productionReadiness : 'No'}\n`;
-         .reasons && fullAnalysis.productionRead if (fullAnalysis.productionReadiness.reasons && fullAnalysis.productionReadiness.reasons.lengthiness.reasons.length > 0) {
-            fullAnalysis.productionReadiness.reasons.forEach > 0) {
-            fullAnalysis((reason) => {
-              content += `.productionReadiness.reasons.forEach((reason) => {
-              content += `       • ${safeString(reason)}\n`;
+        if (fullAnalysis.productionReadiness) {
+          content += `🛡️ Production Readiness:\n`;
+          content += `  Ready: ${fullAnalysis.productionReadiness.isProductionReady ? 'Yes' : 'No'}\n`;
+          if (fullAnalysis.productionReadiness.reasons && fullAnalysis.productionReadiness.reasons.length > 0) {
+            fullAnalysis.productionReadiness.reasons.forEach((reason) => {
+              content += `    • ${safeString(reason)}\n`;
             });
           }
-          if • ${safeString(reason)}\n`;
-            (fullAnalysis.productionReadiness.requiredChanges && fullAnalysis.productionReadiness.requiredChanges });
-          }
-          if (fullAnalysis.productionReadiness.requiredChanges && fullAnalysis.productionReadiness.requiredChanges.length >.length > 0) {
+          if (fullAnalysis.productionReadiness.requiredChanges && fullAnalysis.productionReadiness.requiredChanges.length > 0) {
             content += `  Required Changes:\n`;
- 0) {
-            content += `  Required Changes:\n`;
-            fullAnalysis.pro            fullAnalysis.productionReadiness.requiredChanges.forEach((ductionReadiness.requiredChanges.forEach((change) => {
-              content += `    • ${change) => {
-              content += `    • ${safeString(change)}\safeString(change)}\n`;
-           n`;
+            fullAnalysis.productionReadiness.requiredChanges.forEach((change) => {
+              content += `    • ${safeString(change)}\n`;
             });
-          }
-          content });
           }
           content += `\n`;
         }
-        if (fullAnalysis += `\n`;
-        }
-        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImpro.recommendedImprovements.length > 0) {
-         vements.length > 0) {
-          content += `🔧 Recommended Improvements:\ content += `🔧 Recommended Improvements:\n`;
-          fullAnalysis.recommendedn`;
+        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements.length > 0) {
+          content += `🔧 Recommended Improvements:\n`;
           fullAnalysis.recommendedImprovements.forEach((item) => {
-           Improvements.forEach((item) => {
-            content += `  [${safeString(item.priority content += `  [${safeString(item.priority)}] ${safeString(item.impro)}] ${safeString(item.improvement)}\n`;
-            content += `    Reason: ${safeString(item.reason)}\nvement)}\n`;
+            content += `  [${safeString(item.priority)}] ${safeString(item.improvement)}\n`;
             content += `    Reason: ${safeString(item.reason)}\n`;
           });
-          content += `\`;
-          });
           content += `\n`;
         }
-        if (fulln`;
+        if (fullAnalysis.improvedCode && fullAnalysis.improvedCode.available) {
+          content += `✨ Improved Code:\n`;
+          content += `Notes: ${safeString(fullAnalysis.improvedCode.notes)}\n`;
+          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
-        if (fullAnalysis.improvedCode && fullAnalysisAnalysis.improvedCode && fullAnalysis.improvedCode.improvedCode.available) {
-         .available) {
-          content += ` content += `✨ Improved Code:\n`;
-          content += `Notes: ${safeString(f✨ Improved Code:\n`;
-          content += `Notes: ${safeString(fullAnalysis.improvedCode.notesullAnalysis.improvedCode.notes)}\n`;
-)}\n`;
-          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
-        }
-        if (fullAnalysis`;
-        }
-        if (fullAnalysis.s.suggestedTests && fullAnalysis.suggestedTests.lengthuggestedTests && fullAnalysis.suggestedTests.length > 0) {
-          content += > 0) {
-          content += `🧪 Suggested Tests:\n `🧪 Suggested Tests:\n`;
-          fullAnalysis.suggestedTests.forEach`;
+        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
+          content += `🧪 Suggested Tests:\n`;
           fullAnalysis.suggestedTests.forEach((test) => {
-            content((test) => {
-            content += `  • ${safeString(test += `  • ${safeString(test.name)}\n`;
-            content += `.name)}\n`;
+            content += `  • ${safeString(test.name)}\n`;
             content += `    Input: ${safeString(test.input)}\n`;
-               Input: ${safeString(test.input)}\n`;
-            content += `    Expected: ${safe content += `    Expected: ${safeString(test.expectedOutput)}\nString(test.expectedOutput)}\n`;
-            content += `    Type: ${`;
+            content += `    Expected: ${safeString(test.expectedOutput)}\n`;
             content += `    Type: ${safeString(test.type)}\n`;
-         safeString(test.type)}\n`;
           });
           content += `\n`;
         }
-        });
-          content += `\n`;
- if (fullAnalysis.scorecard) {
-                 }
         if (fullAnalysis.scorecard) {
           content += `📊 Scorecard:\n`;
-          const content += `📊 Scorecard:\n`;
           const scores = fullAnalysis.scorecard;
-          scores = fullAnalysis.scorecard;
-          content += `  Correctness: ${safeString(scores.correctness)} content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
-          content += `  Read/10\n`;
-          content += `  Readability: ${safeString(scores.readability)}ability: ${safeString(scores.readability)}/10\n`;
-          content += `/10\n`;
-          content += `  Performance: ${safeString(scores  Performance: ${safeString(scores.performance)}/10\n`;
-          content.performance)}/10\n`;
-          content += `  Maintainability: ${safeString(scores += `  Maintainability: ${safeString(s.maintainability)}/10\ncores.maintainability)}/10\n`;
-          content += `  Production Readiness`;
-          content += `  Production Readiness: ${safeString(scores.productionReadiness)}/: ${safeString(scores.productionReadiness)}/10\n`;
-          if (scores.security !== undefined) content += ` 10\n`;
-          if (scores.security !== undefined) content += `  Security: ${safeString(scores.security)} Security: ${safeString(scores.security)}//10\n`;
-          if (scores.overall) content += `  Overall:10\n`;
-          if (scores.overall) content += `  Overall: ${safeString(scores.overall ${safeString(scores.overall)}/10\n`;
-          content += `\n`;
-        }
-        if (fullAnalysis.f)}/10\n`;
+          content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
+          content += `  Readability: ${safeString(scores.readability)}/10\n`;
+          content += `  Performance: ${safeString(scores.performance)}/10\n`;
+          content += `  Maintainability: ${safeString(scores.maintainability)}/10\n`;
+          content += `  Production Readiness: ${safeString(scores.productionReadiness)}/10\n`;
+          if (scores.security !== undefined) content += `  Security: ${safeString(scores.security)}/10\n`;
+          if (scores.overall) content += `  Overall: ${safeString(scores.overall)}/10\n`;
           content += `\n`;
         }
         if (fullAnalysis.finalVerdict) {
-          content += `🏁inalVerdict) {
           content += `🏁 Final Verdict:\n`;
-          content += `  Summary: Final Verdict:\n`;
-          content += `  Summary: ${safeString ${safeString(fullAnalysis.finalVerdict(fullAnalysis.finalVerdict.summary)}\n`;
-          content += `  Approved:.summary)}\n`;
-          content += `  Approved: ${fullAnalysis.finalVerdict.approved ? '✅ Yes' ${fullAnalysis.finalVerdict.approved ? '✅ Yes' : '❌ No'}\n : '❌ No'}\n`;
-`;
-          if (fullAnalysis.finalVerdict.nextSteps)          if (fullAnalysis.finalVerdict.nextSteps) {
-            content += ` {
-            content += `  Next Steps:  Next Steps: ${safeString(fullAnalysis.finalVerdict.next ${safeString(fullAnalysis.finalVerdict.nextSteps)}\n`;
+          content += `  Summary: ${safeString(fullAnalysis.finalVerdict.summary)}\n`;
+          content += `  Approved: ${fullAnalysis.finalVerdict.approved ? '✅ Yes' : '❌ No'}\n`;
+          if (fullAnalysis.finalVerdict.nextSteps) {
+            content += `  Next Steps: ${safeString(fullAnalysis.finalVerdict.nextSteps)}\n`;
           }
         }
 
-       Steps)}\n`;
-          }
-        }
-
-        const blob = new Blob const blob = new Blob([content], { type: 'text/plain;charset([content], { type: 'text/plain;charset=utf-8' });
-        const url=utf-8' });
-        const url = URL.create = URL.createObjectURL(blob);
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        aObjectURL(blob);
-        const a.href = url;
-        a.download = `code-analysis-${s = document.createElement('a');
         a.href = url;
-        a.download =nippet?.slug || Date.now()}.txt`;
-        document.body.appendChild(a);
-        a.click `code-analysis-${snippet?.slug || Date.now()}.txt`;
+        a.download = `code-analysis-${snippet?.slug || Date.now()}.txt`;
         document.body.appendChild(a);
         a.click();
-        document();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-       .body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('✅ showToast('✅ Analysis downloaded!');
+        showToast('✅ Analysis downloaded!');
       } catch (error) {
-        if (process.env Analysis downloaded!');
-      } catch (error) {
-        if (process.env.NODE_ENV.NODE_ENV === 'development') {
-          console.error('Download error:', error);
-        === 'development') {
+        if (process.env.NODE_ENV === 'development') {
           console.error('Download error:', error);
         }
- }
         showToast('❌ Failed to download');
       }
-    }, [full        showToast('❌ Failed to download');
-      }
-    }, [fullAnalysis, isAdvancedAnalysis, isAdvanced, snippet]);
+    }, [fullAnalysis, isAdvanced, snippet]);
 
-    const publicUrl = `${appUrl}/snippet/${s, snippet]);
-
-    const publicUrl = `${appUrl}/snippet/${snippet?.slugnippet?.slug || ''}`;
-
-    // ===== cardPageUrl || ''}`;
+    const publicUrl = `${appUrl}/snippet/${snippet?.slug || ''}`;
 
     // ===== cardPageUrl calculation =====
-    const cardPageUrl = snippet?.slug ? `${app calculation =====
     const cardPageUrl = snippet?.slug ? `${appUrl}/snippet/${snippet.slug}/card?theme=${selectedTheme}` : '';
 
-    const quickAnalysisText = !isAdvanced && fullUrl}/snippet/${snippet.slug}/card?theme=${selectedTheme}` : '';
-
-    const quickAnalysisText = !isAdvanced && fullAnalysis?.analysis ?Analysis?.analysis ? fullAnalysis.analysis : null;
+    const quickAnalysisText = !isAdvanced && fullAnalysis?.analysis ? fullAnalysis.analysis : null;
 
     if (loading) {
       return <LoadingState />;
     }
 
-    if fullAnalysis.analysis : null;
-
-    if (loading) {
-      return <LoadingState />;
-    }
-
-    if (!snippet) (!snippet) {
-      return {
+    if (!snippet) {
       return <EmptyState />;
     }
 
     return (
-      <div className="flex flex <EmptyState />;
-    }
-
-    return (
-      <div className="flex flex-col h-full bg-col h-full bg-white rounded-xl border-white rounded-xl border-2 border-[#d0d0d8] overflow-hidden relative shadow-2 border-[#d0d0d8] overflow-hidden relative shadow-sm">
+      <div className="flex flex-col h-full bg-white rounded-xl border-2 border-[#d0d0d8] overflow-hidden relative shadow-sm">
         {toastMessage && (
-          <div-sm">
-        {toastMessage && (
-          <div className="absolute top className="absolute top-4 left-1/2 transform -translate-x--4 left-1/2 transform -translate-x-1/2 bg-[#1a1a2e1/2 bg-[#1a1a2e] text-white px] text-white px-6 py-3 rounded-lg shadow-lg z-50-6 py-3 rounded-lg shadow-lg z-50 text-sm transition-all duration-300 text-sm transition-all duration-300">
-            {toast">
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-[#1a1a2e] text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm transition-all duration-300">
             {toastMessage}
-          </Message}
           </div>
         )}
 
-        <div className="absolute left-[-9999div>
-        )}
-
-        <div className="absolute left-[-9999px]px] top-[-9999px]">
+        <div className="absolute left-[-9999px] top-[-9999px]">
           <CardPreview
-            top-[-9999px]">
-          <CardPreview
-            ref={cardRef ref={cardRef}
+            ref={cardRef}
             title={snippet?.card_title || 'Code Analysis'}
-            summary}
-            title={snippet?.card_title || 'Code Analysis'}
-            summary={snippet?.key_concept || 'Analysis of the={snippet?.key_concept || provided code snippet.'}
-            username={ 'Analysis of the provided code snippet.'}
+            summary={snippet?.key_concept || 'Analysis of the provided code snippet.'}
             username={displayUsername || 'Developer'}
-           displayUsername || 'Developer'}
             slug={snippet?.slug || ''}
-            language={s slug={snippet?.slug || ''}
-            language={snippet?.language || 'nippet?.language || 'javascript'}
-           javascript'}
+            language={snippet?.language || 'javascript'}
             theme={selectedTheme}
             showCode={true}
-            codeSnippet={ theme={selectedTheme}
-            showCode={true}
             codeSnippet={snippet?.raw_code || ''}
-            createdAt={ssnippet?.raw_code || ''}
             createdAt={snippet?.created_at}
-            githubUsernamenippet?.created_at}
-            githubUsername={displayGithub={displayGithubUsername || undefined}
+            githubUsername={displayGithubUsername || undefined}
           />
         </div>
 
-       Username || undefined}
-          />
-        </div>
-
-        <OutputPanel <OutputPanelHeader
+        <OutputPanelHeader
           activeTab={activeTab}
           setActiveTab={setActiveTab}
         />
 
-        <div className="flex-1 pHeader
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-        />
-
-       -4 md:p-6 overflow-y-auto <div className="flex-1 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-200px)] text-[#1 max-h-[calc(100vh-200px)] text-[#1a1a2ea1a2e]">
-          {]">
+        <div className="flex-1 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-200px)] text-[#1a1a2e]">
           {activeTab === 'explanation' && (
             <ExplanationTab
-              snippetactiveTab === 'explanation' && (
-            <ExplanationTab
-              snippet={snippet={snippet}
-              isAdvanced={}
+              snippet={snippet}
               isAdvanced={isAdvanced}
-             isAdvanced}
               quickAnalysisText={quickAnalysisText}
-              analysisText={snippet.what_this_code_does || '' quickAnalysisText={quickAnalysisText}
               analysisText={snippet.what_this_code_does || ''}
-              debug}
               debugAnalysis={snippet.debug_analysis || ''}
-              optimization={snippet.Analysis={snippet.debug_analysis || ''}
-              optimization={snippet.optimizationoptimization || ''}
-              key || ''}
-              keyConcept={snippetConcept={snippet.key_concept || ''}
-              cardTitle={snippet.card_title || ''.key_concept || ''}
+              optimization={snippet.optimization || ''}
+              keyConcept={snippet.key_concept || ''}
               cardTitle={snippet.card_title || ''}
-            />
-          )}
-
-          {activeTab === 'linkedin' &&}
             />
           )}
 
           {activeTab === 'linkedin' && (
             <LinkedInTab
-              linkedinPost={ (
-            <LinkedInTab
-              linkedinPost={snippet.linkedsnippet.linkedin_post || ''}
-              shareUrl={publicUrlin_post || ''}
+              linkedinPost={snippet.linkedin_post || ''}
               shareUrl={publicUrl}
               showToast={showToast}
             />
           )}
 
-          {activeTab}
-              showToast={showToast}
-            />
-          )}
-
-          {activeTab === 'preview === 'preview' && (
-            <PreviewTab
-              snippet={s' && (
+          {activeTab === 'preview' && (
             <PreviewTab
               snippet={snippet}
               selectedTheme={selectedTheme}
               setSelectedTheme={setSelectedTheme}
-              cardImageDataUrl={cardImageDataUrlnippet}
-              selectedTheme={selectedTheme}
-              setSelectedTheme={setSelectedTheme}
-              cardImageDataUrl={}
-              isGeneratingCard={iscardImageDataUrl}
-              isGeneratingCard={isGeneratingCardGeneratingCard}
+              cardImageDataUrl={cardImageDataUrl}
+              isGeneratingCard={isGeneratingCard}
               showUsernameInput={showUsernameInput}
               setShowUsernameInput={setShowUsernameInput}
-              tempUsername={}
-              showUsernameInput={showUsernameInput}
-              setShowUsernameInput={setShowUsernameInputtempUsername}
-              setTempUsername={}
               tempUsername={tempUsername}
               setTempUsername={setTempUsername}
-              tempsetTempUsername}
               tempGithubUsername={tempGithubUsername}
-              setTempGithubGithubUsername={tempGithubUsername}
-              setTempGithubUsername={setTempUsername={setTempGithubUsername}
-              isUpdating={isUpdatingGithubUsername}
+              setTempGithubUsername={setTempGithubUsername}
               isUpdating={isUpdating}
-              updateCard}
               updateCardImage={updateCardImage}
               showToast={showToast}
               publicUrl={publicUrl}
-              appUrlImage={updateCardImage}
-              showToast={showToast}
-              publicUrl={publicUrl}
-              appUrl={appUrl={appUrl}
-              downloadCard={downloadCard}
-              savedImageUrl={savedImage}
+              appUrl={appUrl}
               downloadCard={downloadCard}
               savedImageUrl={savedImageUrl}
-             Url}
               isUploading={isUploading}
-              hasUploaded={hasUpload isUploading={isUploading}
               hasUploaded={hasUploaded}
-              onUploadImage={handleUploadImageed}
               onUploadImage={handleUploadImage}
               cardPageUrl={cardPageUrl}
               avatarUrl={avatarUrl}
-              isUpload}
-              cardPageUrl={cardPageUrl}
-              avatarUrl={avatarUrl}
-              isUploadingAvatar={isUploadingAvataringAvatar={isUploadingAvatar}
-              onUploadAvatar={handleUploadAvatar}
-            />
-         }
+              isUploadingAvatar={isUploadingAvatar}
               onUploadAvatar={handleUploadAvatar}
             />
           )}
-
-          {activeTab === 'analysis' && (
-            <AnalysisTab )}
 
           {activeTab === 'analysis' && (
             <AnalysisTab
               fullAnalysis={fullAnalysis}
               isAdvanced={isAdvanced}
-              quickAnalysis
-              fullAnalysis={fullAnalysis}
-              isAdvanced={isAdvanced}
-              quickAnalysisText={Text={quickAnalysisText}
+              quickAnalysisText={quickAnalysisText}
               snippet={snippet}
-              onCopyFullAnalysisquickAnalysisText}
-              snippet={snippet}
-              onCopyFullAnalysis={copyFullAnalysis={copyFullAnalysisNew}
-              onDownloadFullAnalysis={downloadAnalysisNew}
-            />
-          )New}
+              onCopyFullAnalysis={copyFullAnalysisNew}
               onDownloadFullAnalysis={downloadAnalysisNew}
             />
           )}
-
-          {activeTab === 'line-by-line' &&}
 
           {activeTab === 'line-by-line' && (
             <LineByLineTab
               snippet={snippet}
-              line (
-            <LineByLineTab
-              snippet={snippet}
               lineExplanations={lineExplanations}
-              isExplaining={isExplExplanations={lineExplanations}
               isExplaining={isExplaining}
-aining}
               hoveredLine={hoveredLine}
-              onLineHover              hoveredLine={hoveredLine}
-              onLineHover={onLineH={onLineHover}
-              showToast={showToast}
-              appUrl={appUrlover}
+              onLineHover={onLineHover}
               showToast={showToast}
               appUrl={appUrl}
-            />
-          )}
-
-          {activeTab === 'prompt' &&}
             />
           )}
 
           {activeTab === 'prompt' && (
-            <Prompt (
             <PromptTab
               snippet={snippet}
-              generatedPrompt={generTab
-              snippet={snippet}
               generatedPrompt={generatedPrompt}
-             atedPrompt}
-              isGeneratingPrompt={isGener isGeneratingPrompt={isGeneratingPrompt}
-              showToast={showToast}
-              appUrl={appUrl}
-            />
-          )}
-
-atingPrompt}
+              isGeneratingPrompt={isGeneratingPrompt}
               showToast={showToast}
               appUrl={appUrl}
             />
           )}
 
           {activeTab === 'all-outputs' && (
-                     {activeTab === 'all-outputs' && (
-            <AllOutputsTab <AllOutputsTab
-              snippet={snippet}
-              showToast={showToast
+            <AllOutputsTab
               snippet={snippet}
               showToast={showToast}
               appUrl={appUrl}
             />
           )}
         </div>
-}
-              appUrl={appUrl}
-            />
-          )}
-        </div>
-      </div      </div>
-    );
-  }
-);
-
-OutputPanel.display>
+      </div>
     );
   }
 );
 
 OutputPanel.displayName = 'OutputPanel';
-
-export default OutputPanel;
-Name = 'OutputPanel';
 
 export default OutputPanel;
