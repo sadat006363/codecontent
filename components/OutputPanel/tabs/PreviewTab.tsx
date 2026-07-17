@@ -73,17 +73,20 @@ export default function PreviewTab({
   const [isDownloading, setIsDownloading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
 
+  // ============================================================
+  // 🔥 لینک صحیح برای صفحه کارت (نه صفحه اسنیپت)
+  // ============================================================
   const cardPageUrl = `${appUrl}/snippet/${snippet?.slug}/card?theme=${selectedTheme}`;
 
   // ============================================================
-  // 🔥 دکمه کپی اختصاصی (مستقل از CardActions)
+  // 🔥 دکمه کپی اختصاصی برای لینک کارت
   // ============================================================
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await navigator.clipboard.writeText(cardPageUrl);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
-      showToast('✅ Page link copied!');
+      showToast('✅ Card page link copied!');
     } catch (error) {
       console.error('Copy failed:', error);
       showToast('❌ Failed to copy link');
@@ -114,16 +117,16 @@ export default function PreviewTab({
 
     switch (platform) {
       case 'linkedin':
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(publicUrl)}`, '_blank');
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(cardPageUrl)}`, '_blank');
         break;
       case 'twitter':
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(fullText)}&url=${encodeURIComponent(publicUrl)}`, '_blank');
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(fullText)}&url=${encodeURIComponent(cardPageUrl)}`, '_blank');
         break;
       case 'whatsapp':
-        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(fullText + ' ' + publicUrl)}`, '_blank');
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(fullText + ' ' + cardPageUrl)}`, '_blank');
         break;
       case 'telegram':
-        window.open(`https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent(title)}`, '_blank');
+        window.open(`https://t.me/share/url?url=${encodeURIComponent(cardPageUrl)}&text=${encodeURIComponent(title)}`, '_blank');
         break;
     }
   };
@@ -139,11 +142,11 @@ export default function PreviewTab({
         </h2>
         
         <div className="flex items-center gap-2">
-          {/* ===== دکمه کپی لینک ===== */}
+          {/* ===== دکمه کپی لینک کارت ===== */}
           <button
             onClick={handleCopyLink}
             className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md transition border border-[#d0d0d8] text-[#4a4a6a] hover:text-[#4a86f7] hover:bg-[#f1f3f5]"
-            title="Copy page link to clipboard"
+            title="Copy card page link to clipboard"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
