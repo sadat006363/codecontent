@@ -18,7 +18,7 @@ interface PreviewTabProps {
   isUpdating: boolean;
   updateCardImage: () => void;
   showToast: (message: string) => void;
-  publicUrl: string;
+  publicUrl: string;          // ← این از OutputPanel می‌آید
   appUrl: string;
   downloadCard: () => void;
   savedImageUrl?: string | null;
@@ -99,9 +99,9 @@ export default function PreviewTab({
   }, [cardImageDataUrl, isGeneratingCard]);
 
   // ============================================================
-  // 🔥 استخراج slug از snippet یا publicUrl (به عنوان fallback)
+  // 🔥 استخراج slug از publicUrl (بهترین روش)
   // ============================================================
-  const slug = snippet?.slug || publicUrl.split('/').pop() || 'unknown';
+  const slug = publicUrl.split('/').pop() || snippet?.slug || '';
 
   // ============================================================
   // 🔥 لینک صفحه کارت (HTML) – برای کپی قبل از آپلود
