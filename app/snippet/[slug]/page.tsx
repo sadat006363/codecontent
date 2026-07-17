@@ -113,6 +113,7 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
 
     let highlightedHtml = '';
     try {
+      // Uses github-light theme from shiki.ts
       highlightedHtml = await highlightCode(snippet.raw_code, snippet.language);
     } catch {
       highlightedHtml = `<pre class="text-gray-800 p-4">${safeString(snippet.raw_code)}</pre>`;
@@ -312,13 +313,14 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
           )}
 
           {/* ============================================================
-              🔥 3. Source Code
+              🔥 3. Source Code (fully light background)
               ============================================================ */}
           <div className="bg-white shadow-sm rounded-2xl border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200">
               <span className="text-sm font-semibold text-blue-600">💻 Source Code</span>
             </div>
-            <div className="p-4 overflow-x-auto max-h-[600px] font-mono text-sm leading-relaxed bg-gray-50">
+            <div className="p-4 overflow-x-auto max-h-[600px] font-mono text-sm leading-relaxed bg-white">
+              {/* highlightedHtml uses github-light theme from shiki.ts */}
               <div dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
             </div>
           </div>

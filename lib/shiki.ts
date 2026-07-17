@@ -1,3 +1,4 @@
+// lib/shiki.ts
 import { createHighlighter, type Highlighter } from 'shiki';
 
 let highlighter: Highlighter | null = null;
@@ -5,7 +6,8 @@ let highlighter: Highlighter | null = null;
 export const getHighlighterInstance = async () => {
   if (!highlighter) {
     highlighter = await createHighlighter({
-      themes: ['dark-plus'],
+      // 🔥 تغییر تم از dark-plus به github-light برای زمینه روشن
+      themes: ['github-light'],
       langs: [
         'javascript',
         'typescript',
@@ -17,27 +19,26 @@ export const getHighlighterInstance = async () => {
         'css',
         'json',
         'bash',
-        // ===== زبان‌های جدید =====
-        'c',              // C
-        'cpp',            // C++
-        'csharp',         // C#
-        'php',            // PHP
-        'ruby',           // Ruby
-        'swift',          // Swift
-        'kotlin',         // Kotlin
-        'dart',           // Dart
-        'r',              // R
-        'sql',            // SQL
-        'yaml',           // YAML
-        'toml',           // TOML
-        'xml',            // XML
-        'markdown',       // Markdown
-        'shell',          // Shell Script
-        'powershell',     // PowerShell
-        'dockerfile',     // Dockerfile
-        'graphql',        // GraphQL
-        'vue',            // Vue.js
-        'svelte',         // Svelte
+        'c',
+        'cpp',
+        'csharp',
+        'php',
+        'ruby',
+        'swift',
+        'kotlin',
+        'dart',
+        'r',
+        'sql',
+        'yaml',
+        'toml',
+        'xml',
+        'markdown',
+        'shell',
+        'powershell',
+        'dockerfile',
+        'graphql',
+        'vue',
+        'svelte',
       ],
     });
   }
@@ -46,5 +47,6 @@ export const getHighlighterInstance = async () => {
 
 export const highlightCode = async (code: string, language: string) => {
   const shiki = await getHighlighterInstance();
-  return shiki.codeToHtml(code, { lang: language, theme: 'dark-plus' });
+  // 🔥 استفاده از تم github-light
+  return shiki.codeToHtml(code, { lang: language, theme: 'github-light' });
 };
