@@ -79,7 +79,7 @@ export default function PreviewTab({
   isUploading = false,
   hasUploaded = false,
   onUploadImage,
-  cardPageUrl, // ← دریافت از والد
+  cardPageUrl,
 }: PreviewTabProps) {
   const [showShareDropdown, setShowShareDropdown] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -105,23 +105,11 @@ export default function PreviewTab({
   }, [cardImageDataUrl, isGeneratingCard]);
 
   // ============================================================
-  // 🔥 دکمه کپی با لاگ دیباگ و منطق دفاعی
+  // 🔥 دکمه کپی – اگر تصویر آپلود شده، لینک تصویر را کپی کن،
+  // در غیر این صورت از cardPageUrl (که از والد می‌آید) استفاده کن
   // ============================================================
   const handleCopyLink = async () => {
     const linkToCopy = localSavedImageUrl || cardPageUrl;
-
-    // ===== لاگ دیباگ برای عیب‌یابی =====
-    console.log('[🔍 Debug Copy Link]', {
-      mountedFile: 'components/OutputPanel/tabs/PreviewTab.tsx',
-      localSavedImageUrl,
-      savedImageUrl,
-      cardPageUrl,
-      publicUrl,
-      selectedTheme,
-      slug: snippet?.slug,
-      linkToCopy,
-      pathname: window?.location?.pathname || 'N/A',
-    });
 
     if (!linkToCopy) {
       showToast('❌ Card link is not available yet');

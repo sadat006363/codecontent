@@ -732,7 +732,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
               isUploading={isUploading}
               hasUploaded={hasUploaded}
               onUploadImage={handleUploadImage}
-              cardPageUrl={cardPageUrl} // ← پروپ جدید
+              cardPageUrl={cardPageUrl}
             />
           )}
 
