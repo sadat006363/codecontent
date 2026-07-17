@@ -1,3 +1,4 @@
+// app/api/og-image/route.tsx
 import { ImageResponse } from '@vercel/og';
 import { NextRequest } from 'next/server';
 
@@ -15,10 +16,9 @@ export async function GET(req: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://Zbloue.vercel.app';
-    const fullUrl = `${appUrl}/snippet/${slug}`;
 
     // ===== ساخت تصویر با استفاده از @vercel/og =====
-    return new ImageResponse(
+    const imageResponse = new ImageResponse(
       (
         <div
           style={{
@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
             position: 'relative',
           }}
         >
-          {/* ===== Background Pattern ===== */}
           <div
             style={{
               position: 'absolute',
@@ -46,7 +45,6 @@ export async function GET(req: NextRequest) {
             }}
           />
           
-          {/* ===== Glow Effects ===== */}
           <div
             style={{
               position: 'absolute',
@@ -72,7 +70,6 @@ export async function GET(req: NextRequest) {
             }}
           />
 
-          {/* ===== Logo ===== */}
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, zIndex: 1 }}>
             <div
               style={{
@@ -98,7 +95,6 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          {/* ===== Title ===== */}
           <h1
             style={{
               fontSize: 52,
@@ -114,7 +110,6 @@ export async function GET(req: NextRequest) {
             {title}
           </h1>
 
-          {/* ===== Username ===== */}
           <div
             style={{
               display: 'flex',
@@ -147,7 +142,6 @@ export async function GET(req: NextRequest) {
             <span style={{ color: 'white', fontSize: 18 }}>{username}</span>
           </div>
 
-          {/* ===== Footer ===== */}
           <div
             style={{
               position: 'absolute',
@@ -161,11 +155,10 @@ export async function GET(req: NextRequest) {
             }}
           >
             <span style={{ color: '#6c7086', fontSize: 14 }}>
-              🔗 {fullUrl}
+              🔗 {`${appUrl}/snippet/${slug}`}
             </span>
           </div>
 
-          {/* ===== Watermark ===== */}
           <div
             style={{
               position: 'absolute',
@@ -183,23 +176,28 @@ export async function GET(req: NextRequest) {
       {
         width: 1200,
         height: 630,
+        // ============================================================
+        // 🔥 افزودن Cache-Control برای کش شدن
+        // ============================================================
         headers: {
           'Cache-Control': 'public, max-age=86400, stale-while-revalidate=43200',
         },
       }
     );
+
+    return imageResponse;
   } catch (error: any) {
     if (process.env.NODE_ENV === 'development') {
       console.error('OG Image generation error:', error);
     }
     return new Response(
-      JSON.stringify({ 
-        error: 'Failed to generate image', 
-        message: error.message 
+      JSON.stringify({
+        error: 'Failed to generate image',
+        message: error.message,
       }),
-      { 
+      {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       }
     );
   }

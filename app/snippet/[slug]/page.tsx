@@ -1,3 +1,4 @@
+// app/snippet/[slug]/page.tsx
 import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import { highlightCode } from '@/lib/shiki';
@@ -18,10 +19,13 @@ import {
   LineExplanation,
 } from '@/types';
 
-// ===== جلوگیری از Static Generation در زمان build =====
-export const dynamic = 'force-dynamic';
+// ============================================================
+// 🔥 تغییر به ISR (Incremental Static Regeneration)
+// ============================================================
+export const dynamic = 'auto';
+export const revalidate = 3600; // هر ۱ ساعت یکبار بازتولید می‌شود
 
-// ===== Supabase Client با fallback (برای جلوگیری از خطا در build) =====
+// ===== Supabase Client با fallback =====
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key';
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -37,7 +41,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   try {
     const { data: snippet } = await supabaseAdmin
       .from('snippets')
-      .select('card_title, key_concept, username')
+      .select('card_title, key_concept, username, card_image_url')
       .eq('slug', slug)
       .single();
 
@@ -51,7 +55,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       : 'View this code snippet and its analysis.';
     const username = snippet.username || 'Developer';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://Zbloue.vercel.app';
-    const imageUrl = `${appUrl}/api/og-image?slug=${slug}&title=${encodeURIComponent(title)}&username=${encodeURIComponent(username)}`;
+    
+    // ============================================================
+    // 🔥 اگر تصویر در Blob ذخیره شده باشد، از آن استفاده کن
+    // ============================================================
+    const imageUrl = snippet.card_image_url || `${appUrl}/api/og-image?slug=${slug}&title=${encodeURIComponent(title)}&username=${encodeURIComponent(username)}`;
 
     return {
       title: `${title} | Zbloue`,
@@ -61,7 +69,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description: description,
         type: 'article',
         url: `${appUrl}/snippet/${slug}`,
-        images: [{ url: imageUrl, width: 1200, height: 630, alt: title }],
+        images: [
+          {
+            url: imageUrl,
+            width: 1200,
+            height: 630,
+            alt: title,
+          },
+        ],
       },
       twitter: {
         card: 'summary_large_image',
@@ -123,8 +138,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
     };
 
     const hasUserInfo = snippet.username || snippet.github_username;
-    const isFullAnalysis = snippet.debug_analysis !== '-';
-
     const hasAdvancedAnalysis = snippet.code_walkthrough ||
       snippet.what_works_well ||
       snippet.bugs_and_risky_cases ||
@@ -147,7 +160,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
     return (
       <main className="min-h-screen bg-[#0f0f14] text-[#cdd6f4] p-4 md:p-8 flex flex-col items-center">
         <div className="max-w-4xl w-full">
-          {/* ===== HEADER ===== */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <Link href="/" className="text-[#89b4fa] hover:text-[#b4befe] transition-colors inline-flex items-center gap-2 text-sm font-medium">
               ← Back to Home
@@ -158,9 +170,7 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
             </div>
           </div>
 
-          {/* ===== MAIN CARD ===== */}
           <div className="bg-[#1e1e2e] rounded-xl p-6 md:p-8 shadow-2xl border border-[#313244] space-y-6">
-            {/* ===== Title & User Info ===== */}
             <div>
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
@@ -204,7 +214,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* ===== SOURCE CODE ===== */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-semibold text-[#89b4fa]">💻 Source Code</span>
@@ -215,7 +224,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* ===== BASIC ANALYSIS ===== */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-[#313244]">
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold text-[#89b4fa] flex items-center gap-2">💡 Key Concept</h3>
@@ -231,7 +239,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* ===== DEBUG & OPTIMIZATION ===== */}
             {(snippet.debug_analysis && snippet.debug_analysis !== '-') ||
               (snippet.optimization && snippet.optimization !== '-') ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-[#313244]">
@@ -254,7 +261,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             ) : null}
 
-            {/* ===== ADVANCED ANALYSIS ===== */}
             {hasAdvancedAnalysis && (
               <div className="pt-6 border-t border-[#313244]">
                 <h2 className="text-2xl font-bold text-white mb-4">📊 Advanced Analysis</h2>
@@ -464,7 +470,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
-            {/* ===== LINE BY LINE EXPLANATIONS ===== */}
             {hasLineExplanations && (
               <div className="pt-6 border-t border-[#313244]">
                 <h2 className="text-2xl font-bold text-white mb-4">📝 Line-by-Line Explanations</h2>
@@ -481,7 +486,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
-            {/* ===== GENERATED PROMPT ===== */}
             {hasGeneratedPrompt && (
               <div className="pt-6 border-t border-[#313244]">
                 <h2 className="text-2xl font-bold text-white mb-4">📝 Generated Prompt</h2>
@@ -493,7 +497,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             )}
 
-            {/* ===== LINKEDIN POST ===== */}
             <div className="pt-6 border-t border-[#313244] space-y-3">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-[#fab387] flex items-center gap-2">💼 LinkedIn Post</h3>
@@ -504,7 +507,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* ===== SOCIAL SHARE ===== */}
             <div className="pt-6 border-t border-[#313244] space-y-3">
               <h3 className="text-lg font-semibold text-[#89b4fa] flex items-center gap-2">🌐 Share This Analysis</h3>
               <div className="flex flex-wrap gap-2">
@@ -523,7 +525,6 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
               </div>
             </div>
 
-            {/* ===== FOOTER ===== */}
             <div className="mt-8 pt-6 border-t border-[#313244]">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[#a6adc8]">
                 <div className="flex flex-col sm:flex-row items-center gap-2 text-center sm:text-left">
