@@ -72,6 +72,9 @@ export default function Home() {
   const [hoveredLine, setHoveredLine] = useState<number | null>(null);
   const outputPanelRef = useRef<any>(null);
 
+  // ===== NEW: State for avatar URL from OutputPanel =====
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | null>(null);
+
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
@@ -142,6 +145,13 @@ export default function Home() {
     return result;
   }, []);
 
+  // ============================================================
+  // 🔥 NEW: Handle avatar change from OutputPanel
+  // ============================================================
+  const handleAvatarChange = useCallback((avatarUrl: string | null) => {
+    setCurrentAvatarUrl(avatarUrl);
+  }, []);
+
   const handleSnippetUpdate = useCallback((data: { username: string; github_username: string }) => {
     setDisplaySnippet((prev) => {
       if (!prev) return null;
@@ -204,7 +214,6 @@ export default function Home() {
         throw new Error(data.error || 'Conversion failed');
       }
 
-      // ===== به‌روزرسانی ادیتور با کد فشرده =====
       const convertedCode = removeEmptyLines(data.convertedCode);
       setCode(convertedCode);
       setLanguage(targetLang);
@@ -234,7 +243,6 @@ export default function Home() {
       return;
     }
 
-    // ===== به‌روزرسانی ادیتور با کد فشرده =====
     if (trimmedCode !== code) {
       setCode(trimmedCode);
     }
@@ -269,7 +277,6 @@ export default function Home() {
       const explanations = data.explanations || [];
       setDisplayLineExplanations(explanations);
 
-      // ===== ذخیره توضیحات برای هر سه حالت =====
       setModeOutputs((prev) => ({
         simple: { ...prev.simple, lineExplanations: explanations },
         medium: { ...prev.medium, lineExplanations: explanations },
@@ -307,7 +314,6 @@ export default function Home() {
       return;
     }
 
-    // ===== به‌روزرسانی ادیتور با کد فشرده =====
     if (trimmedCode !== code) {
       setCode(trimmedCode);
     }
@@ -396,7 +402,7 @@ export default function Home() {
   }, [showToast]);
 
   // ============================================================
-  // 🔥 اصلاح اصلی: حذف خطوط خالی در جنریت
+  // 🔥 اصلاح اصلی: حذف خطوط خالی + آپلود خودکار تصویر + avatar_url
   // ============================================================
   const handleGenerate = useCallback(async () => {
     // ===== 1. حذف خطوط خالی =====
@@ -483,6 +489,8 @@ export default function Home() {
           linkedin_post,
           username: username || 'Developer',
           github_username: githubUsername || null,
+          // ===== NEW: Pass current avatar URL to new snippet =====
+          avatar_url: currentAvatarUrl,
           code_walkthrough: genData.codeWalkthrough || null,
           what_works_well: genData.whatWorksWell || null,
           bugs_and_risky_cases: genData.bugsAndRiskyCases || null,
@@ -515,6 +523,8 @@ export default function Home() {
           linkedin_post,
           username: username || 'Developer',
           github_username: githubUsername || null,
+          // ===== NEW: Pass current avatar URL to new snippet =====
+          avatar_url: currentAvatarUrl,
           code_walkthrough: null,
           what_works_well: null,
           bugs_and_risky_cases: null,
@@ -548,6 +558,7 @@ export default function Home() {
         created_at: new Date().toISOString(),
         username: username || 'Developer',
         github_username: githubUsername || null,
+        avatar_url: saveData.avatar_url || null,
         code_walkthrough: saveData.code_walkthrough || null,
         what_works_well: saveData.what_works_well || null,
         bugs_and_risky_cases: saveData.bugs_and_risky_cases || null,
@@ -599,7 +610,7 @@ export default function Home() {
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [code, language, mode, saveSnippet, username, githubUsername, showToast]);
+  }, [code, language, mode, saveSnippet, username, githubUsername, currentAvatarUrl, showToast]);
 
   const modeDescription = useMemo(() => MODE_DESCRIPTIONS[mode], [mode]);
 
@@ -676,6 +687,7 @@ export default function Home() {
             onLineHover={setHoveredLine}
             generatedPrompt={displayGeneratedPrompt}
             isGeneratingPrompt={isGeneratingPrompt}
+            onAvatarChange={handleAvatarChange}
           />
         </div>
       </div>

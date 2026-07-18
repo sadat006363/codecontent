@@ -31,6 +31,8 @@ export interface OutputPanelProps {
   generatedPrompt?: string;
   isGeneratingPrompt?: boolean;
   initialTab?: 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt' | 'all-outputs';
+  // ===== NEW: Callback for avatar change =====
+  onAvatarChange?: (avatarUrl: string | null) => void;
 }
 
 export type TabType = 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt' | 'all-outputs';
@@ -65,6 +67,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     generatedPrompt,
     isGeneratingPrompt = false,
     initialTab = 'explanation',
+    onAvatarChange,
   }, ref) {
     const [activeTab, setActiveTab] = useState<TabType>(initialTab);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -140,7 +143,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, cardImageDataUrl]);
 
-    // ===== NEW: Avatar upload handler (database updated by API) =====
+    // ===== NEW: Avatar upload handler =====
     const handleUploadAvatar = useCallback(async (file: File) => {
       if (!snippet?.slug) {
         showToast('❌ No snippet available');
@@ -161,7 +164,10 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         const data = await response.json();
         if (data.success) {
           setAvatarUrl(data.avatarUrl);
-          // The API already saves the avatar_url in the database, so no extra update needed.
+          // ===== 🔥 Notify parent about avatar change =====
+          if (onAvatarChange) {
+            onAvatarChange(data.avatarUrl);
+          }
           showToast('✅ Avatar uploaded successfully!');
         } else {
           throw new Error(data.error || 'Upload failed');
@@ -172,7 +178,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       } finally {
         setIsUploadingAvatar(false);
       }
-    }, [snippet]);
+    }, [snippet, onAvatarChange]);
 
     const updateSnippetInDatabase = useCallback(async (username: string, githubUsername: string) => {
       if (!snippet || !snippet.slug) return;
@@ -320,6 +326,9 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, activeTab, generateCardImage, tempUsername, tempGithubUsername, onUsernameChange, onGithubChange, updateSnippetInDatabase]);
 
+    // ============================================================
+    // 🔥 FIX: Load avatar from snippet when snippet changes
+    // ============================================================
     useEffect(() => {
       if (snippet && activeTab === 'preview' && isFirstRender.current) {
         isFirstRender.current = false;
@@ -332,9 +341,19 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           setDisplayGithubUsername(snippet.github_username);
           setTempGithubUsername(snippet.github_username);
         }
-        // Load avatar from snippet
+        // Load avatar from snippet (if exists)
         if (snippet.avatar_url) {
           setAvatarUrl(snippet.avatar_url);
+          // Also notify parent
+          if (onAvatarChange) {
+            onAvatarChange(snippet.avatar_url);
+          }
+        } else {
+          // Reset avatar if snippet has no avatar
+          setAvatarUrl(null);
+          if (onAvatarChange) {
+            onAvatarChange(null);
+          }
         }
 
         setIsGeneratingCard(true);
@@ -352,7 +371,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             setIsGeneratingCard(false);
           });
       }
-    }, [snippet, activeTab, generateCardImage]);
+    }, [snippet, activeTab, generateCardImage, onAvatarChange]);
 
     useEffect(() => {
       if (showUsernameInput) {
@@ -408,7 +427,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
-        // ===== FIX: Performance Analysis - correctly structured =====
+        // ===== Performance Analysis =====
         if (fullAnalysis.performanceAnalysis) {
           content += `⚡ Performance Analysis:\n`;
           const pa = fullAnalysis.performanceAnalysis;
@@ -570,7 +589,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
-        // ===== FIX: Performance Analysis - correctly structured =====
+        // ===== Performance Analysis =====
         if (fullAnalysis.performanceAnalysis) {
           content += `⚡ Performance Analysis:\n`;
           const pa = fullAnalysis.performanceAnalysis;
@@ -726,7 +745,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
             codeSnippet={snippet?.raw_code || ''}
             createdAt={snippet?.created_at}
             githubUsername={displayGithubUsername || undefined}
-            avatarUrl={avatarUrl} // Pass avatar URL to CardPreview
+            avatarUrl={avatarUrl}
           />
         </div>
 
