@@ -53,7 +53,7 @@ export default async function CardPage({ params, searchParams }: PageProps) {
   const theme = (await searchParams)?.theme || 'blue';
 
   try {
-    // ===== 1. دریافت داده از Supabase =====
+    // ===== 1. دریافت داده از Supabase (شامل avatar_url) =====
     const { data: snippet, error } = await supabaseAdmin
       .from('snippets')
       .select('*')
@@ -68,7 +68,7 @@ export default async function CardPage({ params, searchParams }: PageProps) {
     }
 
     // ============================================================
-    // 🔥 رندر کارت با کامپوننت CardPreview
+    // 🔥 رندر کارت با کامپوننت CardPreview و ارسال avatarUrl
     // ============================================================
     return (
       <div className="min-h-screen bg-[#0f0f14] flex items-center justify-center p-4">
@@ -84,6 +84,7 @@ export default async function CardPage({ params, searchParams }: PageProps) {
             codeSnippet={snippet.raw_code}
             createdAt={snippet.created_at}
             githubUsername={snippet.github_username || undefined}
+            avatarUrl={snippet.avatar_url || null} // ← 🔥 ارسال avatar_url
           />
         </div>
       </div>
