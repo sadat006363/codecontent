@@ -1,6 +1,8 @@
-// ============================================
+// lib/constants.ts
+
+// ============================================================
 // 📋 محدودیت‌های سراسری پروژه Zbloue
-// ============================================
+// ============================================================
 
 /**
  * حداکثر خطوط مجاز برای تحلیل کد (Generate)
@@ -10,8 +12,9 @@ export const MAX_LINES_GENERATE = 500;
 
 /**
  * حداکثر خطوط مجاز برای توضیح خط به خط (Line-by-Line)
+ * ← اگر کد شما بیش از ۳۰۰ خط غیرخالی دارد، این مقدار را افزایش دهید
  */
-export const MAX_LINES_EXPLAIN = 300;
+export const MAX_LINES_EXPLAIN = 1000; // ← می‌توانید به ۵۰۰ یا ۱۰۰۰ افزایش دهید
 
 /**
  * حداکثر خطوط مجاز برای تولید پرامپت (Prompt)
@@ -42,7 +45,7 @@ export const TIME_WINDOW = 24 * 60 * 60 * 1000; // 24 hours
  * زبان‌های پشتیبانی‌شده
  */
 export const SUPPORTED_LANGUAGES = [
-  'javascript', 'typescript', 'python', 'java', 
+  'javascript', 'typescript', 'python', 'java',
   'rust', 'go', 'html', 'css', 'json', 'bash',
   'c', 'cpp', 'csharp', 'php', 'ruby',
   'swift', 'kotlin', 'dart', 'r', 'sql',

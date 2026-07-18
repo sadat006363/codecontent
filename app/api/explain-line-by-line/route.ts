@@ -1,3 +1,4 @@
+// app/api/explain-line-by-line/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { MAX_LINES_EXPLAIN, MAX_CODE_LENGTH } from '@/lib/constants';
@@ -20,12 +21,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ============================================================
-    // 🔥 NEW: Remove comments before processing
-    // ============================================================
+    // ===== حذف کامنت‌ها برای کاهش حجم =====
     const codeWithoutComments = removeComments(code, language);
 
-    // ===== محدودیت خطوط (با کد بدون کامنت) =====
+    // ===== محدودیت خطوط (بر اساس کد بدون کامنت) =====
     const lines = codeWithoutComments.split('\n').filter((line: string) => line.trim().length > 0);
     if (lines.length > MAX_LINES_EXPLAIN) {
       return NextResponse.json(
@@ -41,12 +40,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ===== ساخت پرامپت =====
+    // ============================================================
+    // 🔥 پرامپت با درخواست توضیحات خلاصه
+    // ============================================================
     const systemPrompt = `
 You are an expert programming tutor. Explain the provided code line by line.
 
 **IMPORTANT RULES:**
-1. Provide a concise explanation for each line (max 2 sentences per line).
+1. Provide a concise explanation for each line (max 1-2 sentences per line).
 2. Focus on WHAT the line does and WHY it's important.
 3. Use simple, easy-to-understand language.
 4. For long code, prioritize important lines and group similar ones.
@@ -75,21 +76,21 @@ Provide a clear explanation for each line of code.
 `;
 
     // ============================================================
-    // 🔥 AbortController با timeout
+    // 🔥 تنظیمات با timeout و max_tokens بالاتر
     // ============================================================
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 seconds
 
     const response = await openai.chat.completions.create(
       {
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // می‌توانید به gpt-4o تغییر دهید
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.3,
         response_format: { type: 'json_object' },
-        max_tokens: 8000,
+        max_tokens: 12000, // ← افزایش یافته
       },
       { signal: controller.signal }
     );
@@ -97,7 +98,7 @@ Provide a clear explanation for each line of code.
     clearTimeout(timeoutId);
 
     const content = response.choices[0].message.content || '{}';
-    
+
     // ===== مدیریت خطای JSON Parsing =====
     let data;
     try {
@@ -117,13 +118,16 @@ Provide a clear explanation for each line of code.
       explanations: data.explanations || [],
     });
   } catch (error: any) {
+    // ============================================================
+    // 🔥 مدیریت خطا
+    // ============================================================
     if (process.env.NODE_ENV === 'development') {
       console.error('Explanation error:', error);
     }
 
     if (error.name === 'AbortError') {
       return NextResponse.json(
-        { error: 'Explanation request timed out after 45 seconds' },
+        { error: 'Explanation request timed out (90 seconds). Please try with shorter code.' },
         { status: 504 }
       );
     }
