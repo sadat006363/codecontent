@@ -1,5 +1,5 @@
 // ============================================================
-// 📁 فایل: app/snippet/[slug]/page.tsx (اصلاح‌شده - حذف renderJsonValue از props)
+// 📁 فایل: app/snippet/[slug]/page.tsx (اصلاح‌شده - اضافه شدن Explain و Prompt)
 // ============================================================
 
 import { notFound } from 'next/navigation';
@@ -15,6 +15,9 @@ import SnippetTabLinks from '@/components/snippet/SnippetTabLinks';
 import SnippetShareButtons from '@/components/snippet/SnippetShareButtons';
 import SnippetFooter from '@/components/snippet/SnippetFooter';
 import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
+// ===== فایل‌های جدید =====
+import SnippetLineByLine from '@/components/snippet/SnippetLineByLine';
+import SnippetPrompt from '@/components/snippet/SnippetPrompt';
 
 // ============================================================
 // 🔥 params باید از نوع Promise باشد (Next.js 16)
@@ -52,7 +55,6 @@ async function getSnippet(slug: string): Promise<Snippet | null> {
     is_public: data.is_public ?? true,
     created_at: data.created_at ?? new Date().toISOString(),
     
-    // فیلدهای nullable با null-safe
     username: data.username ?? null,
     github_username: data.github_username ?? null,
     avatar_url: data.avatar_url ?? null,
@@ -136,9 +138,6 @@ function hasFullAnalysis(snippet: Snippet): boolean {
 }
 
 export default async function SnippetPage({ params }: PageProps) {
-  // ============================================================
-  // 🔥 اصلاح: unwrap کردن params با await
-  // ============================================================
   const { slug } = await params;
   const snippet = await getSnippet(slug);
 
@@ -146,56 +145,35 @@ export default async function SnippetPage({ params }: PageProps) {
     notFound();
   }
 
-  // ساخت لینک اشتراک‌گذاری
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
   const shareUrl = `${baseUrl}/snippet/${snippet.slug}`;
-
-  // هایلایت کد
   const highlightedHtml = await highlightCode(snippet.raw_code, snippet.language);
-
-  // بررسی وجود Full Analysis
   const fullAnalysisExists = hasFullAnalysis(snippet);
 
   return (
     <main className="min-h-screen bg-[#f8f9fa]">
       <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-        {/* Header */}
         <SnippetHeader shareUrl={shareUrl} />
-
-        {/* User Info */}
         <SnippetUserInfo
           username={snippet.username || 'Anonymous'}
           githubUsername={snippet.github_username || undefined}
         />
-
-        {/* Share Buttons */}
         <SnippetShareButtons slug={snippet.slug} title={snippet.card_title} />
-
-        {/* Tab Links */}
         <SnippetTabLinks shareUrl={shareUrl} />
-
-        {/* Code Section */}
         <SnippetCode
           code={snippet.raw_code}
           language={snippet.language}
           highlightedHtml={highlightedHtml}
         />
-
-        {/* Key Concept & What It Does */}
         <SnippetAnalysis
           keyConcept={snippet.key_concept}
           whatItDoes={snippet.what_this_code_does}
         />
-
-        {/* Debug & Optimization */}
         <SnippetDebug
           debugAnalysis={snippet.debug_analysis}
           optimization={snippet.optimization}
         />
 
-        {/* ============================================================
-            🔥 Full Analysis (شرطی) - بدون پاس دادن renderJsonValue
-            ============================================================ */}
         {fullAnalysisExists ? (
           <SnippetFullAnalysis snippet={snippet} />
         ) : (
@@ -212,12 +190,21 @@ export default async function SnippetPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* LinkedIn Post */}
+        {/* ============================================================
+            🔥 بخش‌های جدید: Line-by-Line و Prompt
+            ============================================================ */}
+        {snippet.line_explanations && snippet.line_explanations.length > 0 && (
+          <SnippetLineByLine lineExplanations={snippet.line_explanations} />
+        )}
+
+        {snippet.generated_prompt && (
+          <SnippetPrompt generatedPrompt={snippet.generated_prompt} />
+        )}
+
         {snippet.linkedin_post && (
           <SnippetLinkedIn linkedinPost={snippet.linkedin_post} />
         )}
 
-        {/* Footer */}
         <SnippetFooter appUrl={baseUrl || 'https://zbloue.vercel.app'} />
       </div>
     </main>
