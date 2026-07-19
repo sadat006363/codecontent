@@ -17,10 +17,11 @@ import SnippetShareButtons from '@/components/snippet/SnippetShareButtons';
 import SnippetFooter from '@/components/snippet/SnippetFooter';
 import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
 
+// ============================================================
+// 🔥 اصلاح: params باید از نوع Promise باشد (Next.js 16)
+// ============================================================
 interface PageProps {
-  params: {
-    slug: string;
-  };
+  params: Promise<{ slug: string }>;
 }
 
 async function getSnippet(slug: string): Promise<Snippet | null> {
@@ -53,7 +54,11 @@ async function highlightCode(code: string, language: string): Promise<string> {
 }
 
 export default async function SnippetPage({ params }: PageProps) {
-  const snippet = await getSnippet(params.slug);
+  // ============================================================
+  // 🔥 اصلاح: unwrap کردن params با await
+  // ============================================================
+  const { slug } = await params;
+  const snippet = await getSnippet(slug);
 
   if (!snippet) {
     notFound();
