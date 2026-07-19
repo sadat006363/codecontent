@@ -56,6 +56,10 @@ export default async function SnippetPage({ params }: PageProps) {
     notFound();
   }
 
+  // ساخت لینک اشتراک‌گذاری
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+  const shareUrl = `${baseUrl}/snippet/${snippet.slug}`;
+
   // داده‌ها قبلاً توسط Supabase به‌صورت JSON parse شده‌اند
   const codeWalkthrough = snippet.code_walkthrough as CodeWalkthroughItem[] | null;
   const whatWorksWell = snippet.what_works_well as string[] | null;
@@ -109,8 +113,8 @@ export default async function SnippetPage({ params }: PageProps) {
   return (
     <main className="min-h-screen bg-[#f8f9fa]">
       <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-        {/* Header */}
-        <SnippetHeader snippet={snippet} />
+        {/* Header - اصلاح: ارسال shareUrl */}
+        <SnippetHeader shareUrl={shareUrl} />
 
         {/* User Info */}
         <SnippetUserInfo
@@ -119,7 +123,7 @@ export default async function SnippetPage({ params }: PageProps) {
           avatarUrl={snippet.avatar_url || undefined}
         />
 
-        {/* Share Buttons - خط 116 اصلاح شد */}
+        {/* Share Buttons */}
         <SnippetShareButtons slug={snippet.slug} title={snippet.card_title} />
 
         {/* Tab Links */}
