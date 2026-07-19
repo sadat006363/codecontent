@@ -1,5 +1,5 @@
 'use client';
-import { GenerateResponse, AuditFinding } from '@/types';
+import { GenerateResponse, AuditFinding, EvidenceItem } from '@/types';
 import { safeString } from '@/lib/utils';
 import { useState } from 'react';
 
@@ -32,6 +32,11 @@ const cleanTextForCopy = (text: string) => {
   return cleaned;
 };
 
+// ===== Safe array helper =====
+const safeArray = <T,>(arr: T[] | undefined | null): T[] => {
+  return Array.isArray(arr) ? arr : [];
+};
+
 // ===== Render single finding =====
 const FindingCard = ({ finding }: { finding: AuditFinding }) => {
   const severityColors: Record<string, string> = {
@@ -46,16 +51,6 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
     definite: '✅ Definite',
     likely: '🔶 Likely',
     conditional: '⚠️ Conditional',
-  };
-
-  // ===== Safe array helpers =====
-  const safeArray = (arr: any[] | undefined | null): any[] => {
-    return Array.isArray(arr) ? arr : [];
-  };
-
-  const safeJoin = (arr: any[] | undefined | null, separator: string): string => {
-    const safe = safeArray(arr);
-    return safe.length > 0 ? safe.join(separator) : '';
   };
 
   return (
@@ -73,9 +68,9 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         <span className="text-xs text-[#6c7086]">{confidenceLabels[finding.confidence] || safeString(finding.confidence)}</span>
       </div>
 
-      {finding.evidence && finding.evidence.length > 0 && (
+      {safeArray(finding.evidence).length > 0 && (
         <div className="mt-2 text-xs text-[#6c7086] space-y-1">
-          {finding.evidence.map((ev, idx) => (
+          {safeArray(finding.evidence).map((ev: EvidenceItem, idx: number) => (
             <div key={idx} className="bg-white/50 p-2 rounded border border-[#e8e8f0] font-mono text-[#1a1a2e]">
               <span className="text-[#6c7086]">Lines {ev.startLine}-{ev.endLine}:</span> {safeString(ev.code)}
               <p className="text-[#4a4a6a] text-xs mt-1">{safeString(ev.explanation)}</p>
@@ -88,7 +83,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         <div className="mt-2">
           <span className="text-xs font-medium text-[#4a86f7]">Execution Path:</span>
           <div className="text-xs text-[#4a4a6a] bg-white/50 p-2 rounded border border-[#e8e8f0] mt-1">
-            {safeArray(finding.executionPath).map((step, idx) => (
+            {safeArray(finding.executionPath).map((step: string, idx: number) => (
               <div key={idx}>→ {safeString(step)}</div>
             ))}
           </div>
@@ -99,7 +94,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         <div className="mt-2">
           <span className="text-xs font-medium text-[#4a86f7]">Trigger Conditions:</span>
           <ul className="list-disc list-inside text-xs text-[#4a4a6a] mt-1">
-            {safeArray(finding.triggerConditions).map((cond, idx) => (
+            {safeArray(finding.triggerConditions).map((cond: string, idx: number) => (
               <li key={idx}>{safeString(cond)}</li>
             ))}
           </ul>
@@ -140,11 +135,6 @@ export default function AnalysisTab({
 }: AnalysisTabProps) {
   const [copySuccess, setCopySuccess] = useState(false);
 
-  // ===== Safe array helpers =====
-  const safeArray = (arr: any[] | undefined | null): any[] => {
-    return Array.isArray(arr) ? arr : [];
-  };
-
   // ===== Generate full analysis text for copy/download =====
   const getAnalysisText = () => {
     if (!fullAnalysis) return '';
@@ -159,10 +149,11 @@ export default function AnalysisTab({
         text += `💡 Summary:\n${safeString(fullAnalysis.summary || fullAnalysis.highLevelSummary)}\n\n`;
       }
       text += `🔍 Findings:\n`;
-      safeArray(fullAnalysis.findings).forEach((f) => {
+      safeArray(fullAnalysis.findings).forEach((f: AuditFinding) => {
         text += `  • ${safeString(f.title)} [${safeString(f.severity)}] (${safeString(f.confidence)})\n`;
-        if (f.evidence && f.evidence.length > 0) {
-          text += `    Lines: ${f.evidence.map(e => `${e.startLine}-${e.endLine}`).join(', ')}\n`;
+        if (safeArray(f.evidence).length > 0) {
+          const lines = safeArray(f.evidence).map((e: EvidenceItem) => `${e.startLine}-${e.endLine}`).join(', ');
+          text += `    Lines: ${lines}\n`;
         }
         text += `    Consequence: ${safeString(f.consequence)}\n`;
         if (f.remediation) text += `    Fix: ${safeString(f.remediation)}\n\n`;
@@ -277,7 +268,7 @@ export default function AnalysisTab({
               <div>
                 <span className="font-medium">Entry Points:</span>
                 <ul className="list-disc list-inside mt-1">
-                  {safeArray(fullAnalysis.executionOverview.entryPoints).map((ep, idx) => (
+                  {safeArray(fullAnalysis.executionOverview.entryPoints).map((ep: string, idx: number) => (
                     <li key={idx}>{safeString(ep)}</li>
                   ))}
                 </ul>
@@ -285,7 +276,7 @@ export default function AnalysisTab({
               <div>
                 <span className="font-medium">Task Submission Points:</span>
                 <ul className="list-disc list-inside mt-1">
-                  {safeArray(fullAnalysis.executionOverview.taskSubmissionPoints).map((tsp, idx) => (
+                  {safeArray(fullAnalysis.executionOverview.taskSubmissionPoints).map((tsp: string, idx: number) => (
                     <li key={idx}>{safeString(tsp)}</li>
                   ))}
                 </ul>
@@ -299,7 +290,7 @@ export default function AnalysisTab({
           <div>
             <h3 className="text-lg font-semibold text-[#1a1a2e] mb-3">🔍 Findings</h3>
             <div className="space-y-3">
-              {safeArray(fullAnalysis.findings).map((finding) => (
+              {safeArray(fullAnalysis.findings).map((finding: AuditFinding) => (
                 <FindingCard key={finding.id} finding={finding} />
               ))}
             </div>
@@ -310,7 +301,7 @@ export default function AnalysisTab({
         {safeArray(fullAnalysis.architecturalObservations).length > 0 && (
           <div className="bg-[#f8f9fa] p-4 rounded-lg border border-[#d0d0d8]">
             <h3 className="font-semibold text-[#4a86f7] mb-2">🏗️ Architectural Observations</h3>
-            {safeArray(fullAnalysis.architecturalObservations).map((obs, idx) => (
+            {safeArray(fullAnalysis.architecturalObservations).map((obs: any, idx: number) => (
               <div key={idx} className="border-b border-[#d0d0d8] pb-2 last:border-0 last:pb-0">
                 <p className="font-medium text-[#1a1a2e]">{safeString(obs.title)}</p>
                 <p className="text-sm text-[#4a4a6a]">{safeString(obs.explanation)}</p>
@@ -325,8 +316,8 @@ export default function AnalysisTab({
             <h3 className="text-lg font-semibold text-[#1a1a2e] mb-3">🔧 Recommended Actions</h3>
             <div className="space-y-2">
               {safeArray(fullAnalysis.recommendedActions)
-                .sort((a, b) => a.priority - b.priority)
-                .map((action, idx) => (
+                .sort((a: any, b: any) => a.priority - b.priority)
+                .map((action: any, idx: number) => (
                   <div key={idx} className="flex items-start gap-2 p-3 bg-[#f8f9fa] rounded-lg border border-[#d0d0d8]">
                     <span className="text-sm font-medium text-[#4a86f7]">#{action.priority}</span>
                     <div>
@@ -352,7 +343,7 @@ export default function AnalysisTab({
           <div>
             <h3 className="text-lg font-semibold text-[#1a1a2e] mb-3">🧪 Suggested Tests</h3>
             <div className="space-y-2">
-              {safeArray(fullAnalysis.suggestedTests).map((test, idx) => (
+              {safeArray(fullAnalysis.suggestedTests).map((test: any, idx: number) => (
                 <div key={idx} className="p-3 bg-[#f8f9fa] rounded-lg border border-[#d0d0d8]">
                   <p className="font-medium text-[#1a1a2e]">{safeString(test.title || test.name || 'Test')}</p>
                   <p className="text-sm text-[#4a4a6a]">{safeString(test.purpose)}</p>
@@ -431,7 +422,7 @@ export default function AnalysisTab({
           <div className="bg-[#f8f9fa] p-4 rounded-lg border border-[#d0d0d8]">
             <h3 className="font-semibold text-[#4a86f7] mb-2">⚠️ Limitations</h3>
             <ul className="list-disc list-inside text-sm text-[#4a4a6a]">
-              {safeArray(fullAnalysis.limitations).map((lim, idx) => (
+              {safeArray(fullAnalysis.limitations).map((lim: string, idx: number) => (
                 <li key={idx}>{safeString(lim)}</li>
               ))}
             </ul>
