@@ -3,7 +3,7 @@
 // ============================================================
 
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase'; // ✅ اصلاح: import supabase به جای createClient
 import {
   Snippet,
   GenerateResponse,
@@ -15,9 +15,19 @@ import {
   ProductionReadiness,
   RecommendedImprovement,
   SuggestedTest,
-  ScorecardLegacy, // 🔥 اصلاح: تغییر از Scorecard به ScorecardLegacy
+  ScorecardLegacy,
   LineExplanation,
 } from '@/types';
+import SnippetHeader from '@/components/snippet/SnippetHeader';
+import SnippetCode from '@/components/snippet/SnippetCode';
+import SnippetAnalysis from '@/components/snippet/SnippetAnalysis';
+import SnippetFullAnalysis from '@/components/snippet/SnippetFullAnalysis';
+import SnippetDebug from '@/components/snippet/SnippetDebug';
+import SnippetLinkedIn from '@/components/snippet/SnippetLinkedIn';
+import SnippetTabLinks from '@/components/snippet/SnippetTabLinks';
+import SnippetShareButtons from '@/components/snippet/SnippetShareButtons';
+import SnippetFooter from '@/components/snippet/SnippetFooter';
+import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
 
 interface PageProps {
   params: {
@@ -26,7 +36,7 @@ interface PageProps {
 }
 
 async function getSnippet(slug: string): Promise<Snippet | null> {
-  const supabase = createClient();
+  // ✅ اصلاح: استفاده از supabase به جای createClient()
   const { data, error } = await supabase
     .from('snippets')
     .select('*')
@@ -58,7 +68,7 @@ export default async function SnippetPage({ params }: PageProps) {
   let productionReadiness: ProductionReadiness | null = null;
   let recommendedImprovements: RecommendedImprovement[] | null = null;
   let suggestedTests: SuggestedTest[] | null = null;
-  let scorecard: ScorecardLegacy | null = null; // 🔥 اصلاح: تغییر نوع از Scorecard به ScorecardLegacy
+  let scorecard: ScorecardLegacy | null = null;
   let lineExplanations: LineExplanation[] | null = null;
 
   try {
