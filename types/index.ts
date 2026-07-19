@@ -273,6 +273,9 @@ export interface ScorecardLegacy {
   overall: number;
 }
 
+// 🔥 Alias برای سازگاری با عقب (برای فایل‌هایی که از Scorecard استفاده می‌کنند)
+export type Scorecard = ScorecardLegacy;
+
 export interface FinalVerdict {
   summary: string;
   approved: boolean;
