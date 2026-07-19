@@ -1,11 +1,10 @@
 // ============================================================
-// 📁 فایل: app/snippet/[slug]/page.tsx (نسخه نهایی null-safe)
+// 📁 فایل: app/snippet/[slug]/page.tsx (اصلاح‌شده - حذف renderJsonValue از props)
 // ============================================================
 
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Snippet } from '@/types';
-import { renderJsonValue } from '@/lib/utils';
 import SnippetHeader from '@/components/snippet/SnippetHeader';
 import SnippetCode from '@/components/snippet/SnippetCode';
 import SnippetAnalysis from '@/components/snippet/SnippetAnalysis';
@@ -18,7 +17,7 @@ import SnippetFooter from '@/components/snippet/SnippetFooter';
 import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
 
 // ============================================================
-// 🔥 اصلاح: params باید از نوع Promise باشد (Next.js 16)
+// 🔥 params باید از نوع Promise باشد (Next.js 16)
 // ============================================================
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -195,10 +194,10 @@ export default async function SnippetPage({ params }: PageProps) {
         />
 
         {/* ============================================================
-            🔥 Full Analysis (شرطی)
+            🔥 Full Analysis (شرطی) - بدون پاس دادن renderJsonValue
             ============================================================ */}
         {fullAnalysisExists ? (
-          <SnippetFullAnalysis snippet={snippet} renderJsonValue={renderJsonValue} />
+          <SnippetFullAnalysis snippet={snippet} />
         ) : (
           <div className="mt-8 pt-6 border-t border-[#313244]">
             <div className="bg-[#11111b] p-6 rounded-lg border border-[#313244] text-center">
