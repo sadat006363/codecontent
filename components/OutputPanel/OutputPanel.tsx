@@ -31,7 +31,6 @@ export interface OutputPanelProps {
   generatedPrompt?: string;
   isGeneratingPrompt?: boolean;
   initialTab?: 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt' | 'all-outputs';
-  // ===== NEW: Callback for avatar change =====
   onAvatarChange?: (avatarUrl: string | null) => void;
 }
 
@@ -244,7 +243,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
 
     const downloadCard = useCallback(async () => {
       if (isDownloading.current) {
-        // Silently ignore if already downloading
         return;
       }
 
@@ -421,7 +419,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
-        // ===== Performance Analysis =====
+        // ===== Performance Analysis (legacy) =====
         if (fullAnalysis.performanceAnalysis) {
           content += `⚡ Performance Analysis:\n`;
           const pa = fullAnalysis.performanceAnalysis;
@@ -446,6 +444,40 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
+        // ===== New Advanced structure: complexity =====
+        if (fullAnalysis.complexity) {
+          content += `⚡ Complexity Analysis:\n`;
+          content += `  Time Complexity: ${safeString(fullAnalysis.complexity.time)}\n`;
+          content += `  Space Complexity: ${safeString(fullAnalysis.complexity.space)}\n`;
+          if (fullAnalysis.complexity.resourceGrowth) {
+            content += `  Resource Growth: ${safeString(fullAnalysis.complexity.resourceGrowth)}\n`;
+          }
+          content += `\n`;
+        }
+
+        // ===== New Advanced structure: findings =====
+        if (fullAnalysis.findings && fullAnalysis.findings.length > 0) {
+          content += `🔍 Findings:\n`;
+          fullAnalysis.findings.forEach((f: any) => {
+            content += `  • ${safeString(f.title)} [${safeString(f.severity)}] (${safeString(f.confidence)})\n`;
+            if (f.evidence && f.evidence.length > 0) {
+              const lines = f.evidence.map((e: any) => `${e.startLine}-${e.endLine}`).join(', ');
+              content += `    Lines: ${lines}\n`;
+              content += `    Code: ${safeString(f.evidence[0].code)}\n`;
+            }
+            if (f.executionPath && f.executionPath.length > 0) {
+              content += `    Path: ${f.executionPath.join(' → ')}\n`;
+            }
+            if (f.triggerConditions && f.triggerConditions.length > 0) {
+              content += `    Triggers: ${f.triggerConditions.join('; ')}\n`;
+            }
+            content += `    Consequence: ${safeString(f.consequence)}\n`;
+            if (f.remediation) content += `    Fix: ${safeString(f.remediation)}\n`;
+            content += `\n`;
+          });
+        }
+
+        // ===== Legacy security analysis =====
         if (fullAnalysis.securityAnalysis) {
           content += `🔒 Security Analysis:\n`;
           content += `  Severity: ${safeString(fullAnalysis.securityAnalysis.severity)}\n`;
@@ -463,6 +495,8 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           }
           content += `\n`;
         }
+
+        // ===== Production readiness =====
         if (fullAnalysis.productionReadiness) {
           content += `🛡️ Production Readiness:\n`;
           content += `  Ready: ${fullAnalysis.productionReadiness.isProductionReady ? 'Yes' : 'No'}\n`;
@@ -479,32 +513,62 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           }
           content += `\n`;
         }
-        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements.length > 0) {
-          content += `🔧 Recommended Improvements:\n`;
-          fullAnalysis.recommendedImprovements.forEach((item) => {
-            content += `  [${safeString(item.priority)}] ${safeString(item.improvement)}\n`;
-            content += `    Reason: ${safeString(item.reason)}\n`;
+
+        // ===== New Advanced: architectural observations =====
+        if (fullAnalysis.architecturalObservations && fullAnalysis.architecturalObservations.length > 0) {
+          content += `🏗️ Architectural Observations:\n`;
+          fullAnalysis.architecturalObservations.forEach((obs: any) => {
+            content += `  • ${safeString(obs.title)}: ${safeString(obs.explanation)}\n`;
           });
           content += `\n`;
         }
+
+        // ===== New Advanced: recommended actions =====
+        if (fullAnalysis.recommendedActions && fullAnalysis.recommendedActions.length > 0) {
+          content += `🔧 Recommended Actions:\n`;
+          fullAnalysis.recommendedActions
+            .sort((a: any, b: any) => a.priority - b.priority)
+            .forEach((action: any) => {
+              content += `  [${safeString(action.priority)}] ${safeString(action.severity)}: ${safeString(action.title)}\n`;
+              content += `    ${safeString(action.action)}\n`;
+            });
+          content += `\n`;
+        }
+
+        // ===== Suggested Tests (supports both legacy and new structure) =====
+        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
+          content += `🧪 Suggested Tests:\n`;
+          fullAnalysis.suggestedTests.forEach((test: any) => {
+            // Support both legacy and new structure
+            const testName = test.name || test.title || 'Test';
+            const testInput = test.input || test.setup?.join(', ') || '';
+            const testExpected = test.expectedOutput || test.expectedResult || '';
+            const testType = test.type || '';
+            content += `  • ${safeString(testName)}\n`;
+            if (testInput) content += `    Input: ${safeString(testInput)}\n`;
+            if (testExpected) content += `    Expected: ${safeString(testExpected)}\n`;
+            if (testType) content += `    Type: ${safeString(testType)}\n`;
+          });
+          content += `\n`;
+        }
+
+        // ===== Legacy improved code =====
         if (fullAnalysis.improvedCode && fullAnalysis.improvedCode.available) {
           content += `✨ Improved Code:\n`;
           content += `Notes: ${safeString(fullAnalysis.improvedCode.notes)}\n`;
           content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
-        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
-          content += `🧪 Suggested Tests:\n`;
-          fullAnalysis.suggestedTests.forEach((test) => {
-            content += `  • ${safeString(test.name)}\n`;
-            content += `    Input: ${safeString(test.input)}\n`;
-            content += `    Expected: ${safeString(test.expectedOutput)}\n`;
-            content += `    Type: ${safeString(test.type)}\n`;
-          });
-          content += `\n`;
+
+        // ===== New Advanced: improved code (if present) =====
+        if (fullAnalysis.improvedCode?.code) {
+          content += `✨ Improved Code:\n`;
+          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
-        if (fullAnalysis.scorecard) {
+
+        // ===== Legacy scorecard =====
+        if (fullAnalysis.scorecardLegacy) {
           content += `📊 Scorecard:\n`;
-          const scores = fullAnalysis.scorecard;
+          const scores = fullAnalysis.scorecardLegacy;
           content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
           content += `  Readability: ${safeString(scores.readability)}/10\n`;
           content += `  Performance: ${safeString(scores.performance)}/10\n`;
@@ -514,6 +578,29 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           if (scores.overall) content += `  Overall: ${safeString(scores.overall)}/10\n`;
           content += `\n`;
         }
+
+        // ===== New Advanced: scorecard =====
+        if (fullAnalysis.scorecard) {
+          content += `📊 Scorecard:\n`;
+          const scores = fullAnalysis.scorecard;
+          content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
+          content += `  Concurrency Safety: ${safeString(scores.concurrencySafety)}/10\n`;
+          content += `  Liveness: ${safeString(scores.liveness)}/10\n`;
+          content += `  Error Handling: ${safeString(scores.errorHandling)}/10\n`;
+          content += `  Resource Management: ${safeString(scores.resourceManagement)}/10\n`;
+          content += `  Maintainability: ${safeString(scores.maintainability)}/10\n`;
+          content += `  Production Readiness: ${safeString(scores.productionReadiness)}/10\n`;
+          content += `\n`;
+        }
+
+        // ===== New Advanced: verdict =====
+        if (fullAnalysis.verdict) {
+          content += `🏁 Final Verdict:\n`;
+          content += `  Status: ${safeString(fullAnalysis.verdict.status)}\n`;
+          content += `  Explanation: ${safeString(fullAnalysis.verdict.explanation)}\n\n`;
+        }
+
+        // ===== Legacy final verdict =====
         if (fullAnalysis.finalVerdict) {
           content += `🏁 Final Verdict:\n`;
           content += `  Summary: ${safeString(fullAnalysis.finalVerdict.summary)}\n`;
@@ -521,6 +608,26 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           if (fullAnalysis.finalVerdict.nextSteps) {
             content += `  Next Steps: ${safeString(fullAnalysis.finalVerdict.nextSteps)}\n`;
           }
+        }
+
+        // ===== New Advanced: limitations =====
+        if (fullAnalysis.limitations && fullAnalysis.limitations.length > 0) {
+          content += `⚠️ Limitations:\n`;
+          fullAnalysis.limitations.forEach((lim: string) => {
+            content += `  • ${safeString(lim)}\n`;
+          });
+          content += `\n`;
+        }
+
+        // ===== Metadata =====
+        if (fullAnalysis.auditType) {
+          content += `Audit Type: ${safeString(fullAnalysis.auditType)}\n`;
+        }
+        if (fullAnalysis.status) {
+          content += `Status: ${safeString(fullAnalysis.status)}\n`;
+        }
+        if (fullAnalysis.schemaVersion) {
+          content += `Schema: ${safeString(fullAnalysis.schemaVersion)}\n`;
         }
 
         navigator.clipboard.writeText(content).then(() => {
@@ -583,7 +690,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
-        // ===== Performance Analysis =====
+        // ===== Performance Analysis (legacy) =====
         if (fullAnalysis.performanceAnalysis) {
           content += `⚡ Performance Analysis:\n`;
           const pa = fullAnalysis.performanceAnalysis;
@@ -608,6 +715,40 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           content += `\n`;
         }
 
+        // ===== New Advanced: complexity =====
+        if (fullAnalysis.complexity) {
+          content += `⚡ Complexity Analysis:\n`;
+          content += `  Time Complexity: ${safeString(fullAnalysis.complexity.time)}\n`;
+          content += `  Space Complexity: ${safeString(fullAnalysis.complexity.space)}\n`;
+          if (fullAnalysis.complexity.resourceGrowth) {
+            content += `  Resource Growth: ${safeString(fullAnalysis.complexity.resourceGrowth)}\n`;
+          }
+          content += `\n`;
+        }
+
+        // ===== New Advanced: findings =====
+        if (fullAnalysis.findings && fullAnalysis.findings.length > 0) {
+          content += `🔍 Findings:\n`;
+          fullAnalysis.findings.forEach((f: any) => {
+            content += `  • ${safeString(f.title)} [${safeString(f.severity)}] (${safeString(f.confidence)})\n`;
+            if (f.evidence && f.evidence.length > 0) {
+              const lines = f.evidence.map((e: any) => `${e.startLine}-${e.endLine}`).join(', ');
+              content += `    Lines: ${lines}\n`;
+              content += `    Code: ${safeString(f.evidence[0].code)}\n`;
+            }
+            if (f.executionPath && f.executionPath.length > 0) {
+              content += `    Path: ${f.executionPath.join(' → ')}\n`;
+            }
+            if (f.triggerConditions && f.triggerConditions.length > 0) {
+              content += `    Triggers: ${f.triggerConditions.join('; ')}\n`;
+            }
+            content += `    Consequence: ${safeString(f.consequence)}\n`;
+            if (f.remediation) content += `    Fix: ${safeString(f.remediation)}\n`;
+            content += `\n`;
+          });
+        }
+
+        // ===== Legacy security =====
         if (fullAnalysis.securityAnalysis) {
           content += `🔒 Security Analysis:\n`;
           content += `  Severity: ${safeString(fullAnalysis.securityAnalysis.severity)}\n`;
@@ -625,6 +766,8 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           }
           content += `\n`;
         }
+
+        // ===== Production readiness =====
         if (fullAnalysis.productionReadiness) {
           content += `🛡️ Production Readiness:\n`;
           content += `  Ready: ${fullAnalysis.productionReadiness.isProductionReady ? 'Yes' : 'No'}\n`;
@@ -641,32 +784,59 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           }
           content += `\n`;
         }
-        if (fullAnalysis.recommendedImprovements && fullAnalysis.recommendedImprovements.length > 0) {
-          content += `🔧 Recommended Improvements:\n`;
-          fullAnalysis.recommendedImprovements.forEach((item) => {
-            content += `  [${safeString(item.priority)}] ${safeString(item.improvement)}\n`;
-            content += `    Reason: ${safeString(item.reason)}\n`;
+
+        // ===== New Advanced: architectural observations =====
+        if (fullAnalysis.architecturalObservations && fullAnalysis.architecturalObservations.length > 0) {
+          content += `🏗️ Architectural Observations:\n`;
+          fullAnalysis.architecturalObservations.forEach((obs: any) => {
+            content += `  • ${safeString(obs.title)}: ${safeString(obs.explanation)}\n`;
           });
           content += `\n`;
         }
+
+        // ===== New Advanced: recommended actions =====
+        if (fullAnalysis.recommendedActions && fullAnalysis.recommendedActions.length > 0) {
+          content += `🔧 Recommended Actions:\n`;
+          fullAnalysis.recommendedActions
+            .sort((a: any, b: any) => a.priority - b.priority)
+            .forEach((action: any) => {
+              content += `  [${safeString(action.priority)}] ${safeString(action.severity)}: ${safeString(action.title)}\n`;
+              content += `    ${safeString(action.action)}\n`;
+            });
+          content += `\n`;
+        }
+
+        // ===== Suggested Tests (supports both legacy and new) =====
+        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
+          content += `🧪 Suggested Tests:\n`;
+          fullAnalysis.suggestedTests.forEach((test: any) => {
+            const testName = test.name || test.title || 'Test';
+            const testInput = test.input || test.setup?.join(', ') || '';
+            const testExpected = test.expectedOutput || test.expectedResult || '';
+            const testType = test.type || '';
+            content += `  • ${safeString(testName)}\n`;
+            if (testInput) content += `    Input: ${safeString(testInput)}\n`;
+            if (testExpected) content += `    Expected: ${safeString(testExpected)}\n`;
+            if (testType) content += `    Type: ${safeString(testType)}\n`;
+          });
+          content += `\n`;
+        }
+
+        // ===== Improved code =====
         if (fullAnalysis.improvedCode && fullAnalysis.improvedCode.available) {
           content += `✨ Improved Code:\n`;
           content += `Notes: ${safeString(fullAnalysis.improvedCode.notes)}\n`;
           content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
-        if (fullAnalysis.suggestedTests && fullAnalysis.suggestedTests.length > 0) {
-          content += `🧪 Suggested Tests:\n`;
-          fullAnalysis.suggestedTests.forEach((test) => {
-            content += `  • ${safeString(test.name)}\n`;
-            content += `    Input: ${safeString(test.input)}\n`;
-            content += `    Expected: ${safeString(test.expectedOutput)}\n`;
-            content += `    Type: ${safeString(test.type)}\n`;
-          });
-          content += `\n`;
+        if (fullAnalysis.improvedCode?.code) {
+          content += `✨ Improved Code:\n`;
+          content += `${safeString(fullAnalysis.improvedCode.code)}\n\n`;
         }
-        if (fullAnalysis.scorecard) {
+
+        // ===== Scorecard =====
+        if (fullAnalysis.scorecardLegacy) {
           content += `📊 Scorecard:\n`;
-          const scores = fullAnalysis.scorecard;
+          const scores = fullAnalysis.scorecardLegacy;
           content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
           content += `  Readability: ${safeString(scores.readability)}/10\n`;
           content += `  Performance: ${safeString(scores.performance)}/10\n`;
@@ -676,6 +846,25 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           if (scores.overall) content += `  Overall: ${safeString(scores.overall)}/10\n`;
           content += `\n`;
         }
+        if (fullAnalysis.scorecard) {
+          content += `📊 Scorecard:\n`;
+          const scores = fullAnalysis.scorecard;
+          content += `  Correctness: ${safeString(scores.correctness)}/10\n`;
+          content += `  Concurrency Safety: ${safeString(scores.concurrencySafety)}/10\n`;
+          content += `  Liveness: ${safeString(scores.liveness)}/10\n`;
+          content += `  Error Handling: ${safeString(scores.errorHandling)}/10\n`;
+          content += `  Resource Management: ${safeString(scores.resourceManagement)}/10\n`;
+          content += `  Maintainability: ${safeString(scores.maintainability)}/10\n`;
+          content += `  Production Readiness: ${safeString(scores.productionReadiness)}/10\n`;
+          content += `\n`;
+        }
+
+        // ===== Verdict =====
+        if (fullAnalysis.verdict) {
+          content += `🏁 Final Verdict:\n`;
+          content += `  Status: ${safeString(fullAnalysis.verdict.status)}\n`;
+          content += `  Explanation: ${safeString(fullAnalysis.verdict.explanation)}\n\n`;
+        }
         if (fullAnalysis.finalVerdict) {
           content += `🏁 Final Verdict:\n`;
           content += `  Summary: ${safeString(fullAnalysis.finalVerdict.summary)}\n`;
@@ -683,6 +872,26 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           if (fullAnalysis.finalVerdict.nextSteps) {
             content += `  Next Steps: ${safeString(fullAnalysis.finalVerdict.nextSteps)}\n`;
           }
+        }
+
+        // ===== Limitations =====
+        if (fullAnalysis.limitations && fullAnalysis.limitations.length > 0) {
+          content += `⚠️ Limitations:\n`;
+          fullAnalysis.limitations.forEach((lim: string) => {
+            content += `  • ${safeString(lim)}\n`;
+          });
+          content += `\n`;
+        }
+
+        // ===== Metadata =====
+        if (fullAnalysis.auditType) {
+          content += `Audit Type: ${safeString(fullAnalysis.auditType)}\n`;
+        }
+        if (fullAnalysis.status) {
+          content += `Status: ${safeString(fullAnalysis.status)}\n`;
+        }
+        if (fullAnalysis.schemaVersion) {
+          content += `Schema: ${safeString(fullAnalysis.schemaVersion)}\n`;
         }
 
         const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -704,10 +913,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     }, [fullAnalysis, isAdvanced, snippet]);
 
     const publicUrl = `${appUrl}/snippet/${snippet?.slug || ''}`;
-
-    // ===== cardPageUrl calculation =====
     const cardPageUrl = snippet?.slug ? `${appUrl}/snippet/${snippet.slug}/card?theme=${selectedTheme}` : '';
-
     const quickAnalysisText = !isAdvanced && fullAnalysis?.analysis ? fullAnalysis.analysis : null;
 
     if (loading) {
@@ -749,19 +955,19 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
         />
 
         <div className="flex-1 p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-200px)] text-[#1a1a2e]">
-        {activeTab === 'explanation' && (
-  <ExplanationTab
-    snippet={snippet}
-    isAdvanced={isAdvanced}
-    quickAnalysisText={quickAnalysisText}
-    analysisText={snippet.what_this_code_does || ''}
-    debugAnalysis={snippet.debug_analysis || ''}
-    optimization={snippet.optimization || ''}
-    keyConcept={snippet.key_concept || ''}
-    cardTitle={snippet.card_title || ''}
-    fullAnalysis={fullAnalysis} // ← NEW: pass fullAnalysis
-  />
-)}
+          {activeTab === 'explanation' && (
+            <ExplanationTab
+              snippet={snippet}
+              isAdvanced={isAdvanced}
+              quickAnalysisText={quickAnalysisText}
+              analysisText={snippet.what_this_code_does || ''}
+              debugAnalysis={snippet.debug_analysis || ''}
+              optimization={snippet.optimization || ''}
+              keyConcept={snippet.key_concept || ''}
+              cardTitle={snippet.card_title || ''}
+              fullAnalysis={fullAnalysis}
+            />
+          )}
 
           {activeTab === 'linkedin' && (
             <LinkedInTab
