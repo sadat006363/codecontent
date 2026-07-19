@@ -3,7 +3,7 @@
 // ============================================================
 
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase'; // ✅ اصلاح: import supabase به جای createClient
+import { supabase } from '@/lib/supabase';
 import {
   Snippet,
   GenerateResponse,
@@ -36,7 +36,6 @@ interface PageProps {
 }
 
 async function getSnippet(slug: string): Promise<Snippet | null> {
-  // ✅ اصلاح: استفاده از supabase به جای createClient()
   const { data, error } = await supabase
     .from('snippets')
     .select('*')
@@ -57,78 +56,22 @@ export default async function SnippetPage({ params }: PageProps) {
     notFound();
   }
 
-  // Parse JSON fields
-  let fullAnalysis: GenerateResponse | null = null;
-  let codeWalkthrough: CodeWalkthroughItem[] | null = null;
-  let whatWorksWell: string[] | null = null;
-  let bugsAndRiskyCases: BugAndRiskyCase[] | null = null;
-  let edgeCases: EdgeCase[] | null = null;
-  let performanceAnalysis: PerformanceAnalysis | null = null;
-  let securityAnalysis: SecurityAnalysis | null = null;
-  let productionReadiness: ProductionReadiness | null = null;
-  let recommendedImprovements: RecommendedImprovement[] | null = null;
-  let suggestedTests: SuggestedTest[] | null = null;
-  let scorecard: ScorecardLegacy | null = null;
-  let lineExplanations: LineExplanation[] | null = null;
-
-  try {
-    if (snippet.code_walkthrough) {
-      codeWalkthrough = JSON.parse(snippet.code_walkthrough);
-    }
-  } catch {}
-  try {
-    if (snippet.what_works_well) {
-      whatWorksWell = JSON.parse(snippet.what_works_well);
-    }
-  } catch {}
-  try {
-    if (snippet.bugs_and_risky_cases) {
-      bugsAndRiskyCases = JSON.parse(snippet.bugs_and_risky_cases);
-    }
-  } catch {}
-  try {
-    if (snippet.edge_cases) {
-      edgeCases = JSON.parse(snippet.edge_cases);
-    }
-  } catch {}
-  try {
-    if (snippet.performance_analysis) {
-      performanceAnalysis = JSON.parse(snippet.performance_analysis);
-    }
-  } catch {}
-  try {
-    if (snippet.security_analysis) {
-      securityAnalysis = JSON.parse(snippet.security_analysis);
-    }
-  } catch {}
-  try {
-    if (snippet.production_readiness) {
-      productionReadiness = JSON.parse(snippet.production_readiness);
-    }
-  } catch {}
-  try {
-    if (snippet.recommended_improvements) {
-      recommendedImprovements = JSON.parse(snippet.recommended_improvements);
-    }
-  } catch {}
-  try {
-    if (snippet.suggested_tests) {
-      suggestedTests = JSON.parse(snippet.suggested_tests);
-    }
-  } catch {}
-  try {
-    if (snippet.scorecard) {
-      scorecard = JSON.parse(snippet.scorecard);
-    }
-  } catch {}
-  try {
-    if (snippet.line_explanations) {
-      lineExplanations = JSON.parse(snippet.line_explanations);
-    }
-  } catch {}
+  // ✅ اصلاح: داده‌ها قبلاً توسط Supabase به‌صورت JSON parse شده‌اند
+  // بنابراین مستقیماً از فیلدها استفاده می‌کنیم و نیازی به JSON.parse نیست
+  const codeWalkthrough = snippet.code_walkthrough as CodeWalkthroughItem[] | null;
+  const whatWorksWell = snippet.what_works_well as string[] | null;
+  const bugsAndRiskyCases = snippet.bugs_and_risky_cases as BugAndRiskyCase[] | null;
+  const edgeCases = snippet.edge_cases as EdgeCase[] | null;
+  const performanceAnalysis = snippet.performance_analysis as PerformanceAnalysis | null;
+  const securityAnalysis = snippet.security_analysis as SecurityAnalysis | null;
+  const productionReadiness = snippet.production_readiness as ProductionReadiness | null;
+  const recommendedImprovements = snippet.recommended_improvements as RecommendedImprovement[] | null;
+  const suggestedTests = snippet.suggested_tests as SuggestedTest[] | null;
+  const scorecard = snippet.scorecard as ScorecardLegacy | null;
+  const lineExplanations = snippet.line_explanations as LineExplanation[] | null;
 
   // Build fullAnalysis object
-  fullAnalysis = {
+  const fullAnalysis: GenerateResponse = {
     title: snippet.card_title,
     highLevelSummary: snippet.key_concept,
     codeWalkthrough: codeWalkthrough || undefined,
