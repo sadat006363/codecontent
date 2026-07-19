@@ -30,6 +30,65 @@ function isSupportedLanguage(lang: string): lang is typeof SUPPORTED_LANGUAGES[n
   return SUPPORTED_LANGUAGES.includes(lang as any);
 }
 
+// ===== Mock response for debugging UI rendering =====
+const MOCK_RESPONSE = {
+  summary: 'Advanced concurrency analysis completed.',
+  findings: [
+    {
+      title: 'Nested Submission & Thread-Starvation Deadlock',
+      severity: 'critical',
+      confidence: 'definite',
+      category: 'thread-starvation',
+      evidence: [
+        {
+          startLine: 120,
+          endLine: 120,
+          code: 'executor.submit(block::body);',
+          explanation: 'Inner task submitted to same executor.',
+        },
+        {
+          startLine: 122,
+          endLine: 122,
+          code: 'future.get();',
+          explanation: 'Outer task blocks on inner task.',
+        },
+      ],
+      executionPath: [
+        'build() → submitWithBulkhead() → createTask() → executor.submit() → future.get()',
+      ],
+      triggerConditions: [
+        'Pool size = N',
+        'N outer tasks submitted',
+        'Each outer task blocks on inner task',
+      ],
+      consequence: 'All workers blocked, system deadlocked.',
+      technicalExplanation:
+        'Nested submission to the same executor causes deadlock if all workers are occupied.',
+      remediation: 'Use separate executor for inner tasks.',
+      relatedSymbols: ['executor', 'future'],
+      testToReproduce: {
+        title: 'Deadlock test',
+        setup: ['FixedThreadPool(2)'],
+        steps: ['Submit 2 outer tasks that block on inner tasks.'],
+        expectedResult: 'Deadlock after 2 tasks.',
+      },
+    },
+  ],
+  scorecard: {
+    correctness: 4,
+    concurrencySafety: 2,
+    liveness: 2,
+    errorHandling: 4,
+    resourceManagement: 3,
+    maintainability: 5,
+    productionReadiness: 3,
+  },
+  verdict: {
+    status: 'requires-major-changes',
+    explanation: 'Critical concurrency defects must be fixed.',
+  },
+};
+
 export async function POST(req: NextRequest) {
   try {
     // ===== 1. Rate Limiting =====
@@ -112,7 +171,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ===== 6. Execute AI =====
+    // ===== 6. Mock response for debugging =====
+    if (process.env.USE_MOCK_RESPONSE === 'true' && mode === 'advanced') {
+      return NextResponse.json(MOCK_RESPONSE);
+    }
+
+    // ===== 7. Execute AI =====
     let result: any;
 
     if (mode === 'advanced') {
@@ -124,11 +188,14 @@ export async function POST(req: NextRequest) {
             status: pipelineResult.status,
           };
         } else {
-          console.warn('Advanced pipeline failed, falling back to legacy:', pipelineResult.error);
+          console.warn(
+            '[API] Advanced pipeline failed, falling back to legacy:',
+            pipelineResult.error
+          );
           result = await generateEducationalContent(code, language, mode);
         }
       } catch (pipelineError) {
-        console.error('Pipeline error, falling back to legacy:', pipelineError);
+        console.error('[API] Pipeline error, falling back to legacy:', pipelineError);
         result = await generateEducationalContent(code, language, mode);
       }
     } else {
@@ -138,7 +205,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error: any) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('AI Generation error:', error);
+      console.error('[API] AI Generation error:', error);
     }
     return NextResponse.json(
       { error: error.message || 'AI processing failed. Please try again.' },

@@ -1,5 +1,4 @@
 // types/index.ts
-// ============ Existing Types ============
 export interface Snippet {
   id: string;
   slug: string;
@@ -17,6 +16,8 @@ export interface Snippet {
   github_username?: string | null;
   avatar_url?: string | null;
   card_image_url?: string | null;
+
+  // ===== Legacy Advanced fields =====
   code_walkthrough?: any[] | null;
   what_works_well?: string[] | null;
   bugs_and_risky_cases?: any[] | null;
@@ -33,6 +34,17 @@ export interface Snippet {
   final_verdict_next_steps?: string | null;
   line_explanations?: any[] | null;
   generated_prompt?: string | null;
+
+  // ===== NEW Advanced Audit fields =====
+  findings?: any[] | null;
+  execution_overview?: any | null;
+  architectural_observations?: any[] | null;
+  recommended_actions?: any[] | null;
+  suggested_tests_new?: any[] | null;
+  complexity?: any | null;
+  scorecard_new?: any | null;
+  verdict?: any | null;
+  limitations?: string[] | null;
 }
 
 export interface GenerateRequest {
@@ -176,9 +188,8 @@ export interface AdvancedAuditResult {
   scorecardLegacy?: { correctness: number; readability: number; performance: number; maintainability: number; productionReadiness: number; security: number; overall: number };
 }
 
-// ============ GenerateResponse (به‌روز شده) ============
+// ============ GenerateResponse ============
 export interface GenerateResponse {
-  // For Advanced mode (new structure)
   schemaVersion?: '1.0';
   auditType?: AuditType;
   status?: AuditStatus;
@@ -227,8 +238,6 @@ export interface GenerateResponse {
     explanation: string;
   };
   limitations?: string[];
-
-  // Legacy fields (for Simple/Medium and backward compatibility)
   title?: string;
   highLevelSummary?: string;
   codeWalkthrough?: CodeWalkthroughItem[];

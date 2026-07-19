@@ -56,6 +56,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
 
   return (
     <div className={`p-4 rounded-lg border ${severityColors[finding.severity] || 'bg-gray-50 border-gray-200'}`}>
+      {/* ===== Title & badges ===== */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold text-[#1a1a2e]">{safeString(finding.title)}</span>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -69,8 +70,10 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         <span className="text-xs text-[#6c7086]">{confidenceLabels[finding.confidence] || safeString(finding.confidence)}</span>
       </div>
 
+      {/* ===== Evidence ===== */}
       {safeArray(finding.evidence).length > 0 && (
         <div className="mt-2 text-xs text-[#6c7086] space-y-1">
+          <span className="font-medium text-[#4a86f7]">Evidence:</span>
           {safeArray(finding.evidence).map((ev: EvidenceItem, idx: number) => (
             <div key={idx} className="bg-white/50 p-2 rounded border border-[#e8e8f0] font-mono text-[#1a1a2e]">
               <span className="text-[#6c7086]">Lines {ev.startLine}-{ev.endLine}:</span> {safeString(ev.code)}
@@ -80,6 +83,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Execution Path ===== */}
       {safeArray(finding.executionPath).length > 0 && (
         <div className="mt-2">
           <span className="text-xs font-medium text-[#4a86f7]">Execution Path:</span>
@@ -91,6 +95,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Trigger Conditions ===== */}
       {safeArray(finding.triggerConditions).length > 0 && (
         <div className="mt-2">
           <span className="text-xs font-medium text-[#4a86f7]">Trigger Conditions:</span>
@@ -102,6 +107,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Consequence ===== */}
       {finding.consequence && (
         <div className="mt-2">
           <span className="text-xs font-medium text-[#e53935]">Consequence:</span>
@@ -109,6 +115,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Remediation ===== */}
       {finding.remediation && (
         <div className="mt-2">
           <span className="text-xs font-medium text-[#43a047]">💡 Remediation:</span>
@@ -116,6 +123,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Technical Explanation ===== */}
       {finding.technicalExplanation && (
         <div className="mt-2">
           <span className="text-xs font-medium text-[#6c7086]">Technical Details:</span>
@@ -123,6 +131,7 @@ const FindingCard = ({ finding }: { finding: AuditFinding }) => {
         </div>
       )}
 
+      {/* ===== Test to Reproduce ===== */}
       {finding.testToReproduce && (
         <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
           <span className="text-xs font-medium text-[#4a86f7]">🧪 Test to Reproduce:</span>

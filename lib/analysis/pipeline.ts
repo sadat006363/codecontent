@@ -5,6 +5,7 @@ import { buildGenericAdvancedPrompt } from './prompts/generic';
 import { buildConcurrencyAuditPrompt } from './prompts/concurrency';
 import { validateSemanticCompleteness } from './validator';
 import { repairAudit } from './repair';
+import { normalizeAnalysisOutput } from './normalizer';
 import { AdvancedAuditResult, AuditStatus } from './types';
 import { AdvancedAuditResultSchema } from './schema';
 import { ANALYSIS_CONFIG } from './config';
@@ -17,6 +18,15 @@ export interface PipelineResult {
   result: AdvancedAuditResult | null;
   status: AuditStatus;
   error?: string;
+}
+
+// ===== Extract JSON from raw response (remove markdown code blocks) =====
+function extractJSON(text: string): string {
+  let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) return cleaned;
+  return cleaned.substring(start, end + 1);
 }
 
 export async function runAdvancedPipeline(
@@ -76,13 +86,21 @@ export async function runAdvancedPipeline(
 
     clearTimeout(timeoutId);
 
-    const content = response.choices[0].message.content || '{}';
+    const rawContent = response.choices[0].message.content || '{}';
+
+    // ===== Log raw response for debugging =====
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Pipeline] Raw AI response:', rawContent);
+    }
+
+    // ===== Extract and parse JSON =====
+    const jsonString = extractJSON(rawContent);
     let parsed: AdvancedAuditResult;
 
     try {
-      parsed = AdvancedAuditResultSchema.parse(JSON.parse(content));
+      parsed = AdvancedAuditResultSchema.parse(JSON.parse(jsonString));
     } catch (parseError) {
-      // Try repair
+      // Try repair with minimal context
       const repairResult = await repairAudit(
         numberedCode,
         null,
@@ -118,30 +136,27 @@ export async function runAdvancedPipeline(
       };
     }
 
-    // Set audit type if not present
-    if (!parsed.auditType) {
-      parsed.auditType = auditType;
-    }
+    // ===== 6. Normalize output (handle different schemas) =====
+    const normalized = normalizeAnalysisOutput(parsed);
 
-    // ===== 6. Semantic validation =====
+    // ===== 7. Semantic validation =====
     const validationResult = validateSemanticCompleteness(
-      parsed,
+      normalized,
       detectorResult,
       code
     );
 
-    // ===== 7. Repair if needed (max 1 pass) =====
+    // ===== 8. Repair if needed (max 1 pass) =====
     if (validationResult.repairRequired) {
       const repaired = await repairAudit(
         numberedCode,
-        parsed,
+        normalized,
         validationResult,
         language,
         auditType
       );
 
       if (repaired) {
-        // Re-validate repaired result
         const revalidated = validateSemanticCompleteness(
           repaired,
           detectorResult,
@@ -154,28 +169,26 @@ export async function runAdvancedPipeline(
             status: 'repaired',
           };
         } else {
-          // Return best available
           return {
             result: { ...repaired, status: 'partially_complete' },
             status: 'partially_complete',
           };
         }
       } else {
-        // Repair failed, return original with partial status
         return {
-          result: { ...parsed, status: 'partially_complete' },
+          result: { ...normalized, status: 'partially_complete' },
           status: 'partially_complete',
         };
       }
     }
 
-    // ===== 8. Complete =====
+    // ===== 9. Complete =====
     return {
-      result: { ...parsed, status: 'complete' },
+      result: { ...normalized, status: 'complete' },
       status: 'complete',
     };
   } catch (error) {
-    console.error('Pipeline error:', error);
+    console.error('[Pipeline] Pipeline error:', error);
     return {
       result: null,
       status: 'failed_validation',

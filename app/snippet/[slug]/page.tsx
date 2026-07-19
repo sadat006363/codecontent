@@ -1,3 +1,4 @@
+// app/snippet/[slug]/page.tsx
 import { createClient } from '@supabase/supabase-js';
 import { notFound } from 'next/navigation';
 import { highlightCode } from '@/lib/shiki';
@@ -13,6 +14,7 @@ import {
   Scorecard,
   LineExplanation,
 } from '@/types';
+import AnalysisTab from '@/components/OutputPanel/tabs/AnalysisTab';
 
 export const dynamic = 'auto';
 export const revalidate = 3600;
@@ -139,6 +141,48 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
 
     const hasLineExplanations = snippet.line_explanations && snippet.line_explanations.length > 0;
     const hasGeneratedPrompt = snippet.generated_prompt;
+
+    // ===== Build fullAnalysis from both legacy and new fields =====
+    let fullAnalysis = null;
+    if (isAdvanced) {
+      fullAnalysis = {
+        title: snippet.card_title || 'Code Analysis',
+        summary: snippet.final_verdict_summary || undefined,
+        highLevelSummary: snippet.key_concept || undefined,
+        codeWalkthrough: snippet.code_walkthrough,
+        whatWorksWell: snippet.what_works_well,
+        bugsAndRiskyCases: snippet.bugs_and_risky_cases,
+        edgeCases: snippet.edge_cases,
+        performanceAnalysis: snippet.performance_analysis,
+        securityAnalysis: snippet.security_analysis,
+        productionReadiness: snippet.production_readiness,
+        recommendedImprovements: snippet.recommended_improvements,
+        improvedCode: snippet.improved_code ? { available: true, code: snippet.improved_code, notes: '' } : null,
+        suggestedTestsLegacy: snippet.suggested_tests,
+        scorecardLegacy: snippet.scorecard,
+        finalVerdict: snippet.final_verdict_summary ? {
+          summary: snippet.final_verdict_summary,
+          approved: snippet.final_verdict_approved ?? false,
+          nextSteps: snippet.final_verdict_next_steps || '',
+        } : undefined,
+        linkedin_post: snippet.linkedin_post || '',
+        analysis: snippet.what_this_code_does || '',
+        // ===== NEW Advanced fields from database =====
+        findings: snippet.findings,
+        executionOverview: snippet.execution_overview,
+        architecturalObservations: snippet.architectural_observations,
+        recommendedActions: snippet.recommended_actions,
+        suggestedTests: snippet.suggested_tests_new,
+        complexity: snippet.complexity,
+        scorecard: snippet.scorecard_new,
+        verdict: snippet.verdict,
+        limitations: snippet.limitations,
+        auditType: 'concurrency',
+        status: 'complete',
+        language: snippet.language,
+        schemaVersion: '1.0',
+      };
+    }
 
     const topBugs = snippet.bugs_and_risky_cases?.slice(0, 3) || [];
     const topImprovements = snippet.recommended_improvements?.slice(0, 3) || [];
@@ -358,202 +402,52 @@ export default async function SnippetPage({ params, searchParams }: PageProps) {
             </div>
           )}
 
-          {/* ===== 7. Advanced Analysis (collapsible) ===== */}
-          {isAdvanced && hasAdvancedAnalysis && (
+          {/* ===== 7. Advanced Analysis (using AnalysisTab component) ===== */}
+          {isAdvanced && fullAnalysis && (
+            <div className="bg-white shadow-sm rounded-2xl border border-gray-200 p-4">
+              <AnalysisTab
+                fullAnalysis={fullAnalysis}
+                isAdvanced={true}
+                quickAnalysisText={null}
+                snippet={snippet}
+                onCopyFullAnalysis={() => {}}
+                onDownloadFullAnalysis={() => {}}
+              />
+            </div>
+          )}
+
+          {/* ===== 8. Line-by-Line ===== */}
+          {isAdvanced && hasLineExplanations && (
             <details className="bg-white shadow-sm rounded-2xl border border-gray-200 p-4 group open:pb-6 transition-all">
               <summary className="text-lg font-semibold text-gray-900 cursor-pointer list-none flex items-center justify-between">
-                <span>📊 Advanced Analysis (details)</span>
+                <span>📝 Line-by-Line Explanations</span>
                 <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
               </summary>
-              <div className="mt-4 space-y-4">
-                {snippet.code_walkthrough && snippet.code_walkthrough.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">🧩 Code Walkthrough</h3>
-                    <div className="space-y-2 mt-2">
-                      {(snippet.code_walkthrough || []).map((item: CodeWalkthroughItem, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                          <p className="font-medium text-gray-800">{safeString(item.section)}</p>
-                          <p className="text-gray-600 text-sm">{safeString(item.explanation)}</p>
-                        </div>
-                      ))}
-                    </div>
+              <div className="mt-4 space-y-2 max-h-[500px] overflow-y-auto">
+                {(snippet.line_explanations || []).map((item: LineExplanation, idx: number) => (
+                  <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
+                    <p className="font-mono text-sm text-gray-800">Line {item.lineNumber}: {safeString(item.code)}</p>
+                    <p className="text-gray-600 text-sm">💡 {safeString(item.explanation)}</p>
                   </div>
-                )}
-                {snippet.what_works_well && snippet.what_works_well.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-green-600">✅ What Works Well</h3>
-                    <ul className="list-disc list-inside text-gray-700 text-sm mt-2">
-                      {(snippet.what_works_well || []).map((item: string, idx: number) => (
-                        <li key={idx}>{safeString(item)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {snippet.bugs_and_risky_cases && snippet.bugs_and_risky_cases.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-red-600">🐛 Bugs and Risky Cases</h3>
-                    <div className="space-y-2 mt-2">
-                      {(snippet.bugs_and_risky_cases || []).map((item: BugAndRiskyCase, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                          <p className="font-medium text-gray-800">{safeString(item.issue)}</p>
-                          <p className="text-gray-600 text-sm">Impact: {safeString(item.impact)}</p>
-                          {item.example && <p className="text-gray-500 text-xs">Example: {safeString(item.example)}</p>}
-                          <p className="text-xs text-gray-600 mt-1">{getBugExplanation(safeString(item.issue))}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {snippet.edge_cases && snippet.edge_cases.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">🧪 Edge Cases</h3>
-                    <div className="space-y-2 mt-2">
-                      {(snippet.edge_cases || []).map((item: EdgeCase, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                          <p className="font-medium text-gray-800">{safeString(item.case)}</p>
-                          <p className="text-gray-600 text-sm">Current: {safeString(item.currentBehavior)}</p>
-                          <p className="text-gray-600 text-sm">Expected: {safeString(item.expectedBehavior)}</p>
-                          <p className="text-gray-500 text-xs">Risk: {safeString(item.risk)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {snippet.performance_analysis && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">⚡ Performance Analysis</h3>
-                    <div className="mt-2 text-gray-700 text-sm">
-                      {snippet.performance_analysis?.timeComplexity && (
-                        <div><span className="font-medium">Time:</span> {(snippet.performance_analysis.timeComplexity || []).map((t: any) => `${safeString(t.target)}: ${safeString(t.complexity)}`).join(', ')}</div>
-                      )}
-                      {snippet.performance_analysis?.spaceComplexity && (
-                        <div><span className="font-medium">Memory:</span> {(snippet.performance_analysis.spaceComplexity || []).map((t: any) => `${safeString(t.target)}: ${safeString(t.complexity)}`).join(', ')}</div>
-                      )}
-                      {snippet.performance_analysis?.scalabilityNotes && (
-                        <ul className="list-disc list-inside mt-1">{(snippet.performance_analysis.scalabilityNotes || []).map((note: string, idx: number) => <li key={idx}>{safeString(note)}</li>)}</ul>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {snippet.security_analysis && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-red-600">🔒 Security Analysis</h3>
-                    <div className="mt-2 text-gray-700 text-sm">
-                      <p>Severity: {safeString(snippet.security_analysis?.severity || 'N/A')}</p>
-                      {snippet.security_analysis?.issues && <ul className="list-disc list-inside">{(snippet.security_analysis.issues || []).map((issue: string, idx: number) => <li key={idx}>{safeString(issue)}</li>)}</ul>}
-                      {snippet.security_analysis?.recommendations && <ul className="list-disc list-inside">{(snippet.security_analysis.recommendations || []).map((rec: string, idx: number) => <li key={idx}>{safeString(rec)}</li>)}</ul>}
-                    </div>
-                  </div>
-                )}
-                {snippet.production_readiness && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">🛡️ Production Readiness</h3>
-                    <div className="mt-2 text-gray-700 text-sm">
-                      <p>Ready: {snippet.production_readiness?.isProductionReady ? '✅ Yes' : '❌ No'}</p>
-                      <ul className="list-disc list-inside">{(snippet.production_readiness?.reasons || []).map((reason: string, idx: number) => <li key={idx}>{safeString(reason)}</li>)}</ul>
-                    </div>
-                  </div>
-                )}
-                {snippet.recommended_improvements && snippet.recommended_improvements.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-green-600">🔧 Recommended Improvements</h3>
-                    <div className="space-y-2 mt-2">
-                      {(snippet.recommended_improvements || []).map((item: RecommendedImprovement, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                          <p className="font-medium text-gray-800">[{safeString(item.priority)}] {safeString(item.improvement)}</p>
-                          <p className="text-gray-600 text-sm">Reason: {safeString(item.reason)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {snippet.scorecard && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">📊 Scorecard</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                      {Object.entries(snippet.scorecard).map(([key, value]) => {
-                        const score = typeof value === 'number' ? value : 0;
-                        const label = getScoreLabel(score);
-                        const displayKey = key.replace(/([A-Z])/g, ' $1').trim();
-                        return (
-                          <div key={key} className={`bg-gray-50 p-2 rounded-md text-center border border-gray-200 ${label.color}`}>
-                            <p className="text-xs text-gray-500 capitalize">{displayKey}</p>
-                            <p className="text-sm font-bold">{label.emoji} {label.label}</p>
-                            <p className="text-xs text-gray-500">{score}/10</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                {snippet.final_verdict_summary && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">🏁 Final Verdict</h3>
-                    <p className="mt-2 text-gray-700"><strong>Summary:</strong> {kindVerdict.summary}</p>
-                    <p className="text-gray-700"><strong>Status:</strong> {kindVerdict.approved ? '✅ Acceptable' : '🔧 Needs improvement'}</p>
-                    {kindVerdict.nextSteps && <p className="text-gray-700"><strong>Next Steps:</strong> {kindVerdict.nextSteps}</p>}
-                  </div>
-                )}
-                {snippet.improved_code && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">✨ Improved Code</h3>
-                    <pre className="text-gray-800 text-sm whitespace-pre-wrap overflow-auto max-h-[400px] mt-2 bg-white p-3 rounded border border-gray-200">{safeString(snippet.improved_code)}</pre>
-                  </div>
-                )}
-                {snippet.suggested_tests && snippet.suggested_tests.length > 0 && (
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <h3 className="text-lg font-semibold text-blue-600">🧪 Suggested Tests</h3>
-                    <div className="space-y-2 mt-2">
-                      {(snippet.suggested_tests || []).map((test: SuggestedTest, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                          <p className="font-medium text-gray-800">{safeString(test.name)}</p>
-                          <p className="text-gray-600 text-sm">Input: {safeString(test.input)}</p>
-                          <p className="text-gray-600 text-sm">Expected: {safeString(test.expectedOutput)}</p>
-                          <p className="text-gray-500 text-xs">Type: {safeString(test.type)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             </details>
           )}
 
-          {/* ===== 8. Line-by-Line and Prompt ===== */}
-          {isAdvanced && (
-            <>
-              {hasLineExplanations && (
-                <details className="bg-white shadow-sm rounded-2xl border border-gray-200 p-4 group open:pb-6 transition-all">
-                  <summary className="text-lg font-semibold text-gray-900 cursor-pointer list-none flex items-center justify-between">
-                    <span>📝 Line-by-Line Explanations</span>
-                    <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <div className="mt-4 space-y-2 max-h-[500px] overflow-y-auto">
-                    {(snippet.line_explanations || []).map((item: LineExplanation, idx: number) => (
-                      <div key={idx} className="border-b border-gray-200 pb-2 last:border-0">
-                        <p className="font-mono text-sm text-gray-800">Line {item.lineNumber}: {safeString(item.code)}</p>
-                        <p className="text-gray-600 text-sm">💡 {safeString(item.explanation)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {hasGeneratedPrompt && (
-                <details className="bg-white shadow-sm rounded-2xl border border-gray-200 p-4 group open:pb-6 transition-all">
-                  <summary className="text-lg font-semibold text-gray-900 cursor-pointer list-none flex items-center justify-between">
-                    <span>📝 Generated Prompt</span>
-                    <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <div className="mt-4 bg-gray-50 p-4 rounded-xl text-gray-800 text-sm whitespace-pre-wrap max-h-[400px] overflow-y-auto border border-gray-200">
-                    {safeString(snippet.generated_prompt || 'No prompt generated.')}
-                  </div>
-                </details>
-              )}
-            </>
+          {/* ===== 9. Prompt ===== */}
+          {isAdvanced && hasGeneratedPrompt && (
+            <details className="bg-white shadow-sm rounded-2xl border border-gray-200 p-4 group open:pb-6 transition-all">
+              <summary className="text-lg font-semibold text-gray-900 cursor-pointer list-none flex items-center justify-between">
+                <span>📝 Generated Prompt</span>
+                <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="mt-4 bg-gray-50 p-4 rounded-xl text-gray-800 text-sm whitespace-pre-wrap max-h-[400px] overflow-y-auto border border-gray-200">
+                {safeString(snippet.generated_prompt || 'No prompt generated.')}
+              </div>
+            </details>
           )}
 
-          {/* ===== 9. LinkedIn Post ===== */}
+          {/* ===== 10. LinkedIn Post ===== */}
           <div className="bg-white shadow-sm p-6 rounded-2xl border border-gray-200">
             <h3 className="text-lg font-semibold text-orange-600 flex items-center gap-2">💼 LinkedIn Post</h3>
             <p className="mt-2 text-gray-700 text-sm whitespace-pre-wrap leading-relaxed">{safeString(snippet.linkedin_post || 'No LinkedIn post available.')}</p>

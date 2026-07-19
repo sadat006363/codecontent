@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -292,9 +293,6 @@ export default function Home() {
     }
   }, [code, language, displaySnippet, updateSnippet, showToast]);
 
-  // ============================================================
-  // 🔥 اصلاح: ارسال mode به API پرامپت
-  // ============================================================
   const handleGeneratePrompt = useCallback(async () => {
     const trimmedCode = removeEmptyLines(code);
     
@@ -326,7 +324,6 @@ export default function Home() {
       const res = await fetch('/api/generate-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // ===== 🔥 ارسال mode به API =====
         body: JSON.stringify({ code: trimmedCode, language, mode }),
       });
 
@@ -469,6 +466,7 @@ export default function Home() {
           ? genData.recommendedImprovements.map((item) => item.improvement).join('; ')
           : 'No improvements suggested.';
 
+        // ===== ذخیره همه فیلدها (قدیمی و جدید) =====
         saveData = await saveSnippet({
           code: processedCode,
           language,
@@ -481,6 +479,7 @@ export default function Home() {
           username: username || 'Developer',
           github_username: githubUsername || null,
           avatar_url: currentAvatarUrl,
+          // Legacy fields
           code_walkthrough: genData.codeWalkthrough || null,
           what_works_well: genData.whatWorksWell || null,
           bugs_and_risky_cases: genData.bugsAndRiskyCases || null,
@@ -490,11 +489,21 @@ export default function Home() {
           production_readiness: genData.productionReadiness || null,
           recommended_improvements: genData.recommendedImprovements || null,
           improved_code: genData.improvedCode?.code || null,
-          suggested_tests: genData.suggestedTests || null,
-          scorecard: genData.scorecard || null,
+          suggested_tests: genData.suggestedTestsLegacy || null,
+          scorecard: genData.scorecardLegacy || null,
           final_verdict_summary: genData.finalVerdict?.summary || null,
           final_verdict_approved: genData.finalVerdict?.approved || null,
           final_verdict_next_steps: genData.finalVerdict?.nextSteps || null,
+          // ===== NEW Advanced fields =====
+          findings: genData.findings || null,
+          execution_overview: genData.executionOverview || null,
+          architectural_observations: genData.architecturalObservations || null,
+          recommended_actions: genData.recommendedActions || null,
+          suggested_tests_new: genData.suggestedTests || null,
+          complexity: genData.complexity || null,
+          scorecard_new: genData.scorecard || null,
+          verdict: genData.verdict || null,
+          limitations: genData.limitations || null,
         });
         fullAnalysisData = genData;
       } else {
@@ -514,20 +523,6 @@ export default function Home() {
           username: username || 'Developer',
           github_username: githubUsername || null,
           avatar_url: currentAvatarUrl,
-          code_walkthrough: null,
-          what_works_well: null,
-          bugs_and_risky_cases: null,
-          edge_cases: null,
-          performance_analysis: null,
-          security_analysis: null,
-          production_readiness: null,
-          recommended_improvements: null,
-          improved_code: null,
-          suggested_tests: null,
-          scorecard: null,
-          final_verdict_summary: null,
-          final_verdict_approved: null,
-          final_verdict_next_steps: null,
         });
         fullAnalysisData = { analysis: analysisText, linkedin_post };
       }
@@ -548,6 +543,7 @@ export default function Home() {
         username: username || 'Developer',
         github_username: githubUsername || null,
         avatar_url: saveData.avatar_url || null,
+        // Legacy fields
         code_walkthrough: saveData.code_walkthrough || null,
         what_works_well: saveData.what_works_well || null,
         bugs_and_risky_cases: saveData.bugs_and_risky_cases || null,
@@ -562,6 +558,16 @@ export default function Home() {
         final_verdict_summary: saveData.final_verdict_summary || null,
         final_verdict_approved: saveData.final_verdict_approved || null,
         final_verdict_next_steps: saveData.final_verdict_next_steps || null,
+        // ===== NEW Advanced fields =====
+        findings: saveData.findings || null,
+        execution_overview: saveData.execution_overview || null,
+        architectural_observations: saveData.architectural_observations || null,
+        recommended_actions: saveData.recommended_actions || null,
+        suggested_tests_new: saveData.suggested_tests_new || null,
+        complexity: saveData.complexity || null,
+        scorecard_new: saveData.scorecard_new || null,
+        verdict: saveData.verdict || null,
+        limitations: saveData.limitations || null,
       };
 
       setModeOutputs((prev) => ({
