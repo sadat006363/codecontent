@@ -1,7 +1,4 @@
-// ============================================================
-// 📁 فایل: app/page.tsx (اصلاح‌شده - حذف setActiveTab از توابع)
-// ============================================================
-
+// app/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo, useReducer } from 'react';
@@ -464,7 +461,7 @@ export default function Home() {
   }, [code, language, mode, outputs, processCode, validateCode, callGenerateAPI, prepareSaveData, saveSnippet, buildSnippet, showToast]);
 
   // ============================================================
-  // 🔥 اصلاح: حذف setActiveTab از توابع (مدیریت تب در OutputPanel)
+  // 🔥 اصلاح: حذف setActiveTab از توابع
   // ============================================================
   const handleGenerateExplanation = useCallback(async () => {
     const trimmedCode = removeEmptyLines(code);
@@ -480,7 +477,7 @@ export default function Home() {
     }
 
     dispatch({ type: 'SET_EXPLAIN_ERROR', payload: null });
-    dispatch({ type: 'SET_EXPLAINING', payload: true }); // ⏳ نمایش حالت انتظار
+    dispatch({ type: 'SET_EXPLAINING', payload: true });
 
     try {
       const res = await fetch('/api/explain-line-by-line', {
@@ -508,7 +505,7 @@ export default function Home() {
       dispatch({ type: 'SET_EXPLAIN_ERROR', payload: message });
       showToast(`❌ ${message}`);
     } finally {
-      dispatch({ type: 'SET_EXPLAINING', payload: false }); // ✅ پایان حالت انتظار
+      dispatch({ type: 'SET_EXPLAINING', payload: false });
     }
   }, [code, language, mode, displaySnippet, updateSnippet, showToast]);
 
@@ -526,7 +523,7 @@ export default function Home() {
     }
 
     dispatch({ type: 'SET_PROMPT_ERROR', payload: null });
-    dispatch({ type: 'SET_GENERATING_PROMPT', payload: true }); // ⏳ نمایش حالت انتظار
+    dispatch({ type: 'SET_GENERATING_PROMPT', payload: true });
 
     try {
       const res = await fetch('/api/generate-prompt', {
@@ -554,7 +551,7 @@ export default function Home() {
       dispatch({ type: 'SET_PROMPT_ERROR', payload: message });
       showToast(`❌ ${message}`);
     } finally {
-      dispatch({ type: 'SET_GENERATING_PROMPT', payload: false }); // ✅ پایان حالت انتظار
+      dispatch({ type: 'SET_GENERATING_PROMPT', payload: false });
     }
   }, [code, language, mode, displaySnippet, updateSnippet, showToast]);
 

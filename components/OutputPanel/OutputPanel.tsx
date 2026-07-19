@@ -1,7 +1,4 @@
-// ============================================================
-// 📁 فایل: components/OutputPanel/OutputPanel.tsx (اصلاح‌شده - کامل)
-// ============================================================
-
+// components/OutputPanel/OutputPanel.tsx
 'use client';
 import { forwardRef, useImperativeHandle, useState, useEffect, useRef, useCallback } from 'react';
 import { Snippet, GenerateResponse, LineExplanation } from '@/types';
@@ -110,6 +107,24 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       },
     }));
 
+    // ============================================================
+    // 🔥 اصلاح: تغییر خودکار تب بر اساس وضعیت isExplaining و isGeneratingPrompt
+    // ============================================================
+    useEffect(() => {
+      if (isExplaining) {
+        setActiveTab('line-by-line');
+      }
+    }, [isExplaining]);
+
+    useEffect(() => {
+      if (isGeneratingPrompt) {
+        setActiveTab('prompt');
+      }
+    }, [isGeneratingPrompt]);
+
+    // ============================================================
+    // بقیه کدهای قبلی (بدون تغییر)
+    // ============================================================
     const handleUploadImage = useCallback(async () => {
       if (!snippet?.slug || !cardImageDataUrl) {
         showToast('❌ No image to upload');
