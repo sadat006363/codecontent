@@ -1,35 +1,9 @@
-import OpenAI from 'openai';
+// ============================================================
+// 📁 فایل: lib/ai.ts
+// ============================================================
+import { callOpenAIJson } from './openaiClient';
+import logger from './logger';
 
-// ============================================================
-// 🔥 OpenAI Client با fallback برای build
-// ============================================================
-const openaiApiKey = process.env.OPENAI_API_KEY || 'placeholder-key';
-const openai = new OpenAI({ apiKey: openaiApiKey });
-
-// ============================================================
-// 🔥 تنظیمات مدل بر اساس حالت (با قابلیت override از محیط)
-// ============================================================
-const MODEL_CONFIG = {
-  simple: {
-    model: process.env.OPENAI_MODEL_SIMPLE || 'gpt-4o-mini',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_SIMPLE || '4000', 10),
-    timeout: parseInt(process.env.OPENAI_TIMEOUT_SIMPLE || '30000', 10),
-  },
-  medium: {
-    model: process.env.OPENAI_MODEL_MEDIUM || 'gpt-4o-mini',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_MEDIUM || '6000', 10),
-    timeout: parseInt(process.env.OPENAI_TIMEOUT_MEDIUM || '45000', 10),
-  },
-  advanced: {
-    model: process.env.OPENAI_MODEL_ADVANCED || 'gpt-4o',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_ADVANCED || '12000', 10),
-    timeout: parseInt(process.env.OPENAI_TIMEOUT_ADVANCED || '90000', 10),
-  },
-};
-
-// ============================================================
-// 🔥 پرامپت‌ها
-// ============================================================
 export const SIMPLE_PROMPT = `
 You are a fast, concise code assistant. Analyze the provided code snippet quickly.
 Rules:
@@ -59,9 +33,6 @@ Required Output Format (MUST be valid JSON):
 }
 `;
 
-// ============================================================
-// 🔥 پرامپت Advanced جدید (با تحلیل هم‌روندی و liveness)
-// ============================================================
 export const ADVANCED_PROMPT = `
 You are a Senior Staff Software Engineer and an expert Code Auditor.
 Your task is to perform a rigorous, production-grade analysis of the provided source code.
@@ -188,76 +159,43 @@ Return your analysis as a JSON object with the following fields:
 
 {
   "title": "A concise, descriptive title for this analysis",
-  
   "highLevelSummary": "A 2-3 sentence summary of what the code does and its overall quality",
-  
   "codeWalkthrough": [
-    { "section": "Section name (e.g., Function Definition, Input Validation, Core Logic)", 
-      "explanation": "Clear explanation of this section's purpose and behavior" }
+    { "section": "Section name", "explanation": "Clear explanation" }
   ],
-  
-  "whatWorksWell": [
-    "List of things the code does correctly (e.g., clear naming, good structure, proper error handling)"
-  ],
-  
+  "whatWorksWell": ["List of things the code does correctly"],
   "bugsAndRiskyCases": [
-    { "issue": "Description of the issue",
-      "impact": "What happens if this is not fixed (High/Medium/Low)",
-      "example": "A code example or scenario that triggers this issue" }
+    { "issue": "Description", "impact": "High/Medium/Low", "example": "Code example" }
   ],
-  
   "edgeCases": [
-    { "case": "Description of the edge case (e.g., Empty array input)",
-      "currentBehavior": "What the current code does in this case",
-      "expectedBehavior": "What the code should do instead",
-      "risk": "Low|Medium|High" }
+    { "case": "Description", "currentBehavior": "What it does", "expectedBehavior": "What it should do", "risk": "Low|Medium|High" }
   ],
-  
   "performanceAnalysis": {
-    "timeComplexity": [
-      { "target": "The operation/function being analyzed (e.g., Sorting, Search, Main function)", 
-        "complexity": "Big O notation (e.g., O(n), O(n log n))",
-        "explanation": "Brief justification for this complexity" }
-    ],
-    "spaceComplexity": [
-      { "target": "The operation/function being analyzed",
-        "complexity": "Big O notation",
-        "explanation": "Brief justification" }
-    ],
-    "scalabilityNotes": ["Notes about how the code behaves with larger inputs"]
+    "timeComplexity": [{ "target": "Function", "complexity": "O(n)", "explanation": "Why" }],
+    "spaceComplexity": [{ "target": "Function", "complexity": "O(1)", "explanation": "Why" }],
+    "scalabilityNotes": ["Notes about scaling"]
   },
-  
   "securityAnalysis": {
-    "issues": ["List of security issues found (or empty array if none)"],
-    "recommendations": ["List of security recommendations (or empty array if none)"],
+    "issues": ["Security issues"],
+    "recommendations": ["Recommendations"],
     "severity": "Low|Medium|High|Critical"
   },
-  
   "productionReadiness": {
     "isProductionReady": false,
-    "reasons": ["Reasons why the code is or is not production-ready"],
-    "requiredChanges": ["Specific changes needed before production (or empty array if ready)"]
+    "reasons": ["Reasons"],
+    "requiredChanges": ["Changes needed"]
   },
-  
   "recommendedImprovements": [
-    { "priority": "High|Medium|Low",
-      "improvement": "Description of the improvement",
-      "reason": "Why this improvement is important" }
+    { "priority": "High|Medium|Low", "improvement": "Description", "reason": "Why" }
   ],
-  
   "improvedCode": {
     "available": true,
-    "code": "The improved code (use \\n for line breaks)",
-    "notes": "Explanation of the changes made in the improved code"
+    "code": "Improved code",
+    "notes": "Explanation"
   },
-  
   "suggestedTests": [
-    { "name": "Descriptive test name",
-      "input": "The test input",
-      "expectedOutput": "The expected output",
-      "type": "Normal|Edge|Invalid" }
+    { "name": "Test name", "input": "Input", "expectedOutput": "Expected", "type": "Normal|Edge|Invalid" }
   ],
-  
   "scorecard": {
     "correctness": 0,
     "readability": 0,
@@ -267,22 +205,17 @@ Return your analysis as a JSON object with the following fields:
     "security": 0,
     "overall": 0
   },
-  
   "finalVerdict": {
-    "summary": "A clear, concise summary of the code's overall quality",
+    "summary": "Summary",
     "approved": false,
-    "nextSteps": "Specific actionable steps to improve the code"
+    "nextSteps": "Steps"
   },
-  
-  "linkedin_post": "Professional LinkedIn post (max 300 characters) with 3-5 relevant hashtags. Include hook, key points, and engaging content."
+  "linkedin_post": "Professional LinkedIn post (max 300 characters)"
 }
 `;
 
 type AnalysisMode = 'simple' | 'medium' | 'advanced';
 
-// ============================================================
-// 🔥 تابع اصلی تولید تحلیل
-// ============================================================
 export const generateEducationalContent = async (
   code: string,
   language: string,
@@ -303,48 +236,22 @@ export const generateEducationalContent = async (
       break;
   }
 
-  const config = MODEL_CONFIG[mode];
+  const userPrompt = `Language: ${language}\n\nCode:\n${code}`;
 
   try {
-    // ===== AbortController با timeout پویا =====
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), config.timeout);
-
-    const response = await openai.chat.completions.create(
+    const result = await callOpenAIJson<any>(
+      systemPrompt,
+      userPrompt,
       {
-        model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Language: ${language}\n\nCode:\n${code}` },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.3,
-        max_tokens: config.maxTokens,
-      },
-      { signal: controller.signal }
-    );
-
-    clearTimeout(timeoutId);
-
-    const content = response.choices[0].message.content || '{}';
-
-    // ===== Parse JSON با مدیریت خطا =====
-    try {
-      return JSON.parse(content);
-    } catch (parseError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('JSON Parse Error:', parseError);
-        console.error('Raw content:', content);
+        mode,
+        responseFormat: 'json_object',
       }
-      throw new Error('AI response format error. Please try with shorter code.');
-    }
+    );
+    return result;
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Analysis timed out (${config.timeout / 1000}s). Please try with shorter code.`);
-    }
-    if (process.env.NODE_ENV === 'development') {
-      console.error('OpenAI API error:', error);
-    }
-    throw new Error('Failed to generate analysis. Please try again.');
+    logger.error('[AI] Generation failed:', error);
+    throw new Error(
+      error instanceof Error ? error.message : 'Failed to generate analysis'
+    );
   }
 };

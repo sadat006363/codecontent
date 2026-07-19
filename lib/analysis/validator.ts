@@ -1,4 +1,6 @@
-// lib/analysis/validator.ts
+// ============================================================
+// 📁 فایل: lib/analysis/validator.ts
+// ============================================================
 import { z } from 'zod';
 import { AdvancedAuditResultSchema } from './schema';
 import {
@@ -7,7 +9,8 @@ import {
   ValidationIssue,
   DetectorResult,
 } from './types';
-import { getLineCount, isValidLineRange } from './numberedCode';
+import { getLineCount, isValidLineRange, getLineContent } from './numberedCode';
+import logger from '@/lib/logger';
 
 function validateEvidenceLines(
   result: AdvancedAuditResult,
@@ -26,6 +29,7 @@ function validateEvidenceLines(
           relatedLines: [evidence.startLine, evidence.endLine],
           expectedCoverage: 'All evidence lines must be within source code range',
         });
+        continue;
       }
       if (evidence.startLine > evidence.endLine) {
         issues.push({
@@ -34,6 +38,17 @@ function validateEvidenceLines(
           message: `Evidence startLine ${evidence.startLine} > endLine ${evidence.endLine}`,
           relatedLines: [evidence.startLine, evidence.endLine],
           expectedCoverage: 'startLine must be <= endLine',
+        });
+        continue;
+      }
+      const actualCode = getLineContent(code, evidence.startLine, evidence.endLine);
+      if (actualCode && !evidence.code.trim()) {
+        issues.push({
+          code: 'EVIDENCE_CODE_EMPTY',
+          severity: 'warning',
+          message: `Evidence code is empty for lines ${evidence.startLine}-${evidence.endLine}`,
+          relatedLines: [evidence.startLine, evidence.endLine],
+          expectedCoverage: 'Evidence code should contain relevant code snippet',
         });
       }
     }
@@ -177,7 +192,6 @@ export function validateSemanticCompleteness(
 ): AuditValidationResult {
   const allIssues: ValidationIssue[] = [];
 
-  // Schema validation
   let structurallyValid = true;
   try {
     AdvancedAuditResultSchema.parse(result);
@@ -192,27 +206,21 @@ export function validateSemanticCompleteness(
     });
   }
 
-  // Evidence line validation
   const evidenceIssues = validateEvidenceLines(result, code);
   allIssues.push(...evidenceIssues);
 
-  // Critical findings validation
   const criticalIssues = validateCriticalFindings(result);
   allIssues.push(...criticalIssues);
 
-  // Related ID validation
   const relatedIssues = validateRelatedIds(result);
   allIssues.push(...relatedIssues);
 
-  // Verdict consistency
   const verdictIssues = validateVerdictConsistency(result);
   allIssues.push(...verdictIssues);
 
-  // Semantic completeness based on detector signals
   let semanticallyComplete = true;
   const semanticIssues: ValidationIssue[] = [];
 
-  // Check if detector found concurrency signals but audit doesn't have concurrency findings
   if (detectorResult.requiresConcurrencyAudit && result.auditType === 'generic') {
     semanticIssues.push({
       code: 'MISSING_CONCURRENCY_ANALYSIS',
@@ -223,7 +231,6 @@ export function validateSemanticCompleteness(
     });
   }
 
-  // Check for executor signals without liveness analysis
   const hasExecutorSignals = detectorResult.signals.some(
     (s) => s.type === 'EXECUTOR' || s.type === 'THREAD_POOL' || s.type === 'EXECUTOR_SUBMIT'
   );
@@ -242,7 +249,6 @@ export function validateSemanticCompleteness(
     });
   }
 
-  // Check for Future.get with blocking wait signals
   const hasFutureGet = detectorResult.signals.some((s) => s.type === 'FUTURE_GET');
   const hasBlockingAnalysis = result.findings.some(
     (f) => f.category === 'thread-starvation' || f.category === 'liveness'
@@ -257,7 +263,6 @@ export function validateSemanticCompleteness(
     });
   }
 
-  // Check for queue manipulation signals
   const hasQueueOffer = detectorResult.signals.some((s) => s.type === 'QUEUE_OFFER' || s.value.includes('offer'));
   const hasQueueAnalysis = result.findings.some((f) => f.category === 'queue-misuse');
   if (hasQueueOffer && !hasQueueAnalysis) {

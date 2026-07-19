@@ -1,5 +1,6 @@
-// lib/analysis/prompts/base.ts
-
+// ============================================================
+// 📁 فایل: lib/analysis/prompts/base.ts
+// ============================================================
 export function getBaseSystemInstructions(): string {
   return `
 You are a Senior Staff Software Engineer and an expert Code Auditor.

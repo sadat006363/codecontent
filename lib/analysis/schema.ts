@@ -1,5 +1,6 @@
-// lib/analysis/schema.ts
-
+// ============================================================
+// 📁 فایل: lib/analysis/schema.ts
+// ============================================================
 import { z } from 'zod';
 
 const SeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);

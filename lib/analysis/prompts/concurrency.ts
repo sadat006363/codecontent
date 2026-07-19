@@ -1,4 +1,6 @@
-// lib/analysis/prompts/concurrency.ts
+// ============================================================
+// 📁 فایل: lib/analysis/prompts/concurrency.ts
+// ============================================================
 import { getBaseSystemInstructions } from './base';
 
 export function buildConcurrencyAuditPrompt(
@@ -72,7 +74,7 @@ ${numberedCode}
    - Determine whether queued inner tasks can still obtain a worker.
    - If progress can stop, report thread-starvation deadlock with the exact execution path.
 
-6. ANALYZE QUEUE MANIPULATION (CRITICAL):
+6. ANALYZE QUEUE MANIPULATION (CRITICAL - only if executor.getQueue() or manual queue operations are detected):
    - Detect direct calls to executor.getQueue().
    - Detect manual offer/add/put followed by execute/submit.
    - Determine whether the same task can be inserted or scheduled more than once.
@@ -81,7 +83,7 @@ ${numberedCode}
    - Determine whether semaphore permits are released if execute fails.
    - Analyze queue-capacity and rejection-policy interactions.
 
-7. ANALYZE CONFIGURATION REUSE (CRITICAL):
+7. ANALYZE CONFIGURATION REUSE (CRITICAL - only if builder patterns or overloaded methods are detected):
    - Inspect overloads and builder methods.
    - Verify that reused executors also reuse all required configuration.
    - Compare instance fields with shared resource configuration.
@@ -104,25 +106,60 @@ ${numberedCode}
    - Check retry-count semantics: retries versus total attempts.
    - Check whether InterruptedException is re-interrupted.
 
-10. ANALYZE ARCHITECTURAL DUPLICATION:
+10. ANALYZE ARCHITECTURAL DUPLICATION (CRITICAL - only if multiple coordination mechanisms are used):
     - Detect overlapping responsibility among semaphores, pool size, bounded queues,
       manual queue insertion, rejection policies, and timed waits.
     - Explain whether each mechanism has distinct semantics.
     - Report duplication of responsibility if mechanisms redundantly control the same capacity.
 
-==================== EVIDENCE REQUIREMENTS ====================
+==================== OUTPUT SCHEMA (Matches AdvancedAuditResult) ====================
 
-Every confirmed or conditional finding MUST contain:
-- Exact line references (startLine, endLine)
-- Relevant code snippets (at least one)
-- Execution path (full path from entry to failure point)
-- Trigger conditions (specific runtime conditions)
-- Observable consequence (what happens)
-- Confidence (definite/likely/conditional)
-- Recommended fix direction
-- Test to reproduce (title, setup, steps, expectedResult)
+{
+  "summary": "Executive summary of concurrency findings",
+  "findings": [
+    {
+      "title": "Descriptive title",
+      "severity": "critical|high|medium|low|info",
+      "confidence": "definite|likely|conditional",
+      "category": "thread-starvation|deadlock|data-race|queue-misuse|config-drift",
+      "evidence": [
+        {
+          "startLine": 42,
+          "endLine": 45,
+          "code": "relevant code snippet",
+          "explanation": "Why this is evidence"
+        }
+      ],
+      "executionPath": ["entryPoint", "step1", "step2", "failure"],
+      "triggerConditions": ["Condition 1", "Condition 2"],
+      "consequence": "What happens when triggered",
+      "technicalExplanation": "Detailed technical explanation",
+      "remediation": "How to fix",
+      "relatedSymbols": ["symbol1", "symbol2"],
+      "testToReproduce": {
+        "title": "Test name",
+        "setup": ["Setup step 1"],
+        "steps": ["Test step 1"],
+        "expectedResult": "Expected outcome"
+      }
+    }
+  ],
+  "scorecard": {
+    "correctness": 0,
+    "concurrencySafety": 0,
+    "liveness": 0,
+    "errorHandling": 0,
+    "resourceManagement": 0,
+    "maintainability": 0,
+    "productionReadiness": 0
+  },
+  "verdict": {
+    "status": "approved|needs-changes|requires-major-changes|rejected",
+    "explanation": "Detailed explanation"
+  }
+}
 
-==================== ANTI-HALLUCINATION REQUIREMENTS ====================
+==================== ANTI-HALLUCINATION (CRITICAL) ====================
 
 - Do not invent missing code.
 - Do not claim a definite bug when required runtime conditions are unknown.
@@ -134,102 +171,15 @@ Every confirmed or conditional finding MUST contain:
 ==================== FORBIDDEN GENERIC FINDINGS ====================
 
 DO NOT report these without specific evidence, execution path, and trigger conditions:
-- "thread pool exhaustion"
-- "shared static resources"
-- "blocking calls"
-- "no proper shutdown"
-- "thread safety may be an issue"
+- "thread pool exhaustion" (must show how)
+- "shared static resources" (must show which, where, why)
+- "blocking calls" (must show where, why, consequence)
+- "no proper shutdown" (must show what happens without it)
+- "thread safety may be an issue" (must show exact race condition)
 
-Every finding must have: evidence, executionPath, triggerConditions, consequence, remediation.
+==================== MANDATORY OUTPUT ====================
 
-==================== EXAMPLE OUTPUT (FOR REFERENCE) ====================
-
-Here is an example of a valid output for a code with nested submission and queue misuse:
-
-{
-  "schemaVersion": "1.0",
-  "auditType": "concurrency",
-  "status": "complete",
-  "language": "java",
-  "summary": "The code has critical concurrency defects including nested submission deadlock and queue/execute mismatch.",
-  "executionOverview": {
-    "entryPoints": ["build()"],
-    "taskSubmissionPoints": ["executor.submit()"],
-    "blockingWaitPoints": ["future.get()"],
-    "sharedResources": ["poolMap"],
-    "resourceLifecycle": ["no shutdown"]
-  },
-  "findings": [
-    {
-      "id": "FIND-001",
-      "title": "Thread-starvation deadlock due to nested submission",
-      "category": "thread-starvation",
-      "severity": "critical",
-      "confidence": "definite",
-      "evidence": [
-        {
-          "startLine": 120,
-          "endLine": 120,
-          "code": "executor.submit(block::body);",
-          "explanation": "Inner task submitted to same executor."
-        },
-        {
-          "startLine": 122,
-          "endLine": 122,
-          "code": "future.get();",
-          "explanation": "Outer task blocks on inner task."
-        }
-      ],
-      "executionPath": [
-        "build() → submitWithBulkhead() → createTask() → executor.submit() → future.get()"
-      ],
-      "triggerConditions": [
-        "Pool size = N",
-        "N outer tasks submitted",
-        "Each outer task blocks on inner task"
-      ],
-      "consequence": "All workers blocked, system deadlocked.",
-      "technicalExplanation": "Nested submission to the same executor causes deadlock if all workers are occupied.",
-      "remediation": "Use separate executor for inner tasks.",
-      "relatedSymbols": ["executor", "future"],
-      "testToReproduce": {
-        "title": "Deadlock test",
-        "setup": ["FixedThreadPool(2)"],
-        "steps": ["Submit 2 outer tasks that block on inner tasks."],
-        "expectedResult": "Deadlock after 2 tasks."
-      }
-    }
-  ],
-  "architecturalObservations": [],
-  "recommendedActions": [],
-  "suggestedTests": [],
-  "complexity": {
-    "time": "O(1)",
-    "space": "O(1)",
-    "resourceGrowth": "Linear",
-    "assumptions": ["Bounded pool"]
-  },
-  "scorecard": {
-    "correctness": 4,
-    "concurrencySafety": 2,
-    "liveness": 2,
-    "errorHandling": 4,
-    "resourceManagement": 3,
-    "maintainability": 5,
-    "productionReadiness": 3
-  },
-  "verdict": {
-    "status": "requires-major-changes",
-    "explanation": "Critical concurrency defects must be fixed."
-  },
-  "limitations": []
-}
-
-==================== OUTPUT SCHEMA ====================
-
-Return a JSON object matching the AdvancedAuditResult schema.
-Audit type must be "concurrency".
-Do NOT include LinkedIn or social media fields.
+Return a JSON object matching the schema above.
 Use empty arrays when no findings exist.
 `;
 }

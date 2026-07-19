@@ -1,4 +1,6 @@
-// lib/analysis/pipeline.ts
+// ============================================================
+// 📁 فایل: lib/analysis/pipeline.ts
+// ============================================================
 import { addLineNumbers, getLineCount } from './numberedCode';
 import { detectConcurrencySignals } from './detector';
 import { buildGenericAdvancedPrompt } from './prompts/generic';
@@ -9,10 +11,8 @@ import { normalizeAnalysisOutput } from './normalizer';
 import { AdvancedAuditResult, AuditStatus } from './types';
 import { AdvancedAuditResultSchema } from './schema';
 import { ANALYSIS_CONFIG } from './config';
-import OpenAI from 'openai';
-
-const openaiApiKey = process.env.OPENAI_API_KEY || 'placeholder-key';
-const openai = new OpenAI({ apiKey: openaiApiKey });
+import { callOpenAI, callOpenAIJson } from '@/lib/openaiClient';
+import logger from '@/lib/logger';
 
 export interface PipelineResult {
   result: AdvancedAuditResult | null;
@@ -20,7 +20,6 @@ export interface PipelineResult {
   error?: string;
 }
 
-// ===== Extract JSON from raw response (remove markdown code blocks) =====
 function extractJSON(text: string): string {
   let cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '');
   const start = cleaned.indexOf('{');
@@ -33,10 +32,12 @@ export async function runAdvancedPipeline(
   code: string,
   language: string
 ): Promise<PipelineResult> {
+  const startTime = Date.now();
+
   try {
-    // ===== 1. Input validation =====
     const lineCount = getLineCount(code);
     if (lineCount > ANALYSIS_CONFIG.maxLinesForAnalysis) {
+      logger.warn(`[Pipeline] Code exceeds max lines: ${lineCount} > ${ANALYSIS_CONFIG.maxLinesForAnalysis}`);
       return {
         result: null,
         status: 'failed_validation',
@@ -44,63 +45,52 @@ export async function runAdvancedPipeline(
       };
     }
 
-    // ===== 2. Add line numbers =====
     const numberedCode = addLineNumbers(code);
-
-    // ===== 3. Concurrency signal detection =====
     const detectorResult = detectConcurrencySignals(code, language);
 
-    // ===== 4. Select audit strategy =====
     let prompt: string;
     let auditType: 'generic' | 'concurrency';
 
     if (detectorResult.requiresConcurrencyAudit) {
       prompt = buildConcurrencyAuditPrompt(numberedCode, language);
       auditType = 'concurrency';
+      logger.info('[Pipeline] Concurrency audit selected');
     } else {
       prompt = buildGenericAdvancedPrompt(numberedCode, language);
       auditType = 'generic';
+      logger.info('[Pipeline] Generic audit selected');
     }
 
-    // ===== 5. First AI call =====
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    const systemPrompt =
+      'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
-    const response = await openai.chat.completions.create(
-      {
-        model: process.env.OPENAI_MODEL_ADVANCED || 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        max_tokens: 16000,
-      },
-      { signal: controller.signal }
-    );
+    let rawContent: string;
+    try {
+      rawContent = await callOpenAI(systemPrompt, prompt, {
+        mode: 'advanced',
+        responseFormat: 'text',
+      });
+    } catch (aiError) {
+      logger.error('[Pipeline] AI call failed:', aiError);
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: aiError instanceof Error ? aiError.message : 'AI call failed',
+      };
+    }
 
-    clearTimeout(timeoutId);
-
-    const rawContent = response.choices[0].message.content || '{}';
-
-    // ===== Log raw response for debugging =====
     if (process.env.NODE_ENV === 'development') {
-      console.log('[Pipeline] Raw AI response:', rawContent);
+      logger.info('[Pipeline] Raw AI response length:', rawContent.length);
     }
 
-    // ===== Extract and parse JSON =====
     const jsonString = extractJSON(rawContent);
     let parsed: AdvancedAuditResult;
 
     try {
       parsed = AdvancedAuditResultSchema.parse(JSON.parse(jsonString));
     } catch (parseError) {
-      // Try repair with minimal context
+      logger.warn('[Pipeline] Initial parse failed, attempting repair');
+
       const repairResult = await repairAudit(
         numberedCode,
         null,
@@ -123,6 +113,7 @@ export async function runAdvancedPipeline(
       );
 
       if (repairResult) {
+        logger.info('[Pipeline] Repair succeeded after parse failure');
         return {
           result: { ...repairResult, status: 'repaired' },
           status: 'repaired',
@@ -136,18 +127,12 @@ export async function runAdvancedPipeline(
       };
     }
 
-    // ===== 6. Normalize output (handle different schemas) =====
     const normalized = normalizeAnalysisOutput(parsed);
+    const validationResult = validateSemanticCompleteness(normalized, detectorResult, code);
 
-    // ===== 7. Semantic validation =====
-    const validationResult = validateSemanticCompleteness(
-      normalized,
-      detectorResult,
-      code
-    );
-
-    // ===== 8. Repair if needed (max 1 pass) =====
     if (validationResult.repairRequired) {
+      logger.info('[Pipeline] Validation failed, attempting repair');
+
       const repaired = await repairAudit(
         numberedCode,
         normalized,
@@ -157,24 +142,22 @@ export async function runAdvancedPipeline(
       );
 
       if (repaired) {
-        const revalidated = validateSemanticCompleteness(
-          repaired,
-          detectorResult,
-          code
-        );
-
+        const revalidated = validateSemanticCompleteness(repaired, detectorResult, code);
         if (revalidated.structurallyValid && revalidated.semanticallyComplete) {
+          logger.info('[Pipeline] Repair successful, status: repaired');
           return {
             result: { ...repaired, status: 'repaired' },
             status: 'repaired',
           };
         } else {
+          logger.warn('[Pipeline] Partial repair, status: partially_complete');
           return {
             result: { ...repaired, status: 'partially_complete' },
             status: 'partially_complete',
           };
         }
       } else {
+        logger.warn('[Pipeline] Repair failed, returning partial result');
         return {
           result: { ...normalized, status: 'partially_complete' },
           status: 'partially_complete',
@@ -182,13 +165,15 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ===== 9. Complete =====
+    const duration = Date.now() - startTime;
+    logger.info(`[Pipeline] Complete in ${duration}ms`);
+
     return {
       result: { ...normalized, status: 'complete' },
       status: 'complete',
     };
   } catch (error) {
-    console.error('[Pipeline] Pipeline error:', error);
+    logger.error('[Pipeline] Unhandled error:', error);
     return {
       result: null,
       status: 'failed_validation',

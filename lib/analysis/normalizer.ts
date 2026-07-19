@@ -1,11 +1,11 @@
-// lib/analysis/normalizer.ts
+// ============================================================
+// 📁 فایل: lib/analysis/normalizer.ts
+// ============================================================
 import { AdvancedAuditResult } from '@/types';
 
 export function normalizeAnalysisOutput(raw: any): AdvancedAuditResult {
-  // بررسی وجود findings در ساختارهای مختلف
   let findings = raw.findings || raw.issues || raw.advancedFindings || raw.concurrencyFindings || raw.analysis?.findings || [];
 
-  // تبدیل هر finding به ساختار استاندارد
   const normalizedFindings = findings.map((f: any) => ({
     id: f.id || `FIND-${Math.random().toString(36).substr(2, 6)}`,
     title: f.title || f.name || 'Untitled Finding',

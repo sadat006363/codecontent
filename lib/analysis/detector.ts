@@ -1,5 +1,6 @@
-// lib/analysis/detector.ts
-
+// ============================================================
+// 📁 فایل: lib/analysis/detector.ts
+// ============================================================
 import { SIGNAL_WEIGHTS, ANALYSIS_CONFIG } from './config';
 import { DetectorResult, DetectorSignal } from './types';
 
@@ -54,7 +55,7 @@ function getLanguageSignals(language: string): Array<{ pattern: RegExp; type: st
   if (normalized.includes('java')) return CONCURRENCY_SIGNALS.java;
   if (normalized.includes('javascript') || normalized.includes('js')) return CONCURRENCY_SIGNALS.javascript;
   if (normalized.includes('typescript') || normalized.includes('ts')) return CONCURRENCY_SIGNALS.typescript;
-  return CONCURRENCY_SIGNALS.java; // fallback
+  return CONCURRENCY_SIGNALS.java;
 }
 
 function getLineForMatch(code: string, matchIndex: number): number {
@@ -89,7 +90,6 @@ export function detectConcurrencySignals(
     }
   }
 
-  // Remove duplicates and sort by line
   const uniqueSignals = signals.filter(
     (s, idx, self) => idx === self.findIndex((t) => t.type === s.type && t.line === s.line)
   );

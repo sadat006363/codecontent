@@ -1,13 +1,11 @@
-// lib/analysis/repair.ts
-
-import OpenAI from 'openai';
+// ============================================================
+// 📁 فایل: lib/analysis/repair.ts
+// ============================================================
+import { callOpenAI } from '@/lib/openaiClient';
 import { buildRepairPrompt } from './prompts/repair';
-import { AdvancedAuditResult, AuditValidationResult, ValidationIssue } from './types';
+import { AdvancedAuditResult, AuditValidationResult } from './types';
 import { AdvancedAuditResultSchema } from './schema';
-import { ANALYSIS_CONFIG } from './config';
-
-const openaiApiKey = process.env.OPENAI_API_KEY || 'placeholder-key';
-const openai = new OpenAI({ apiKey: openaiApiKey });
+import logger from '@/lib/logger';
 
 export async function repairAudit(
   numberedCode: string,
@@ -38,33 +36,18 @@ export async function repairAudit(
   );
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const systemPrompt = 'You are an expert code auditor. Return only valid JSON.';
+    
+    const content = await callOpenAI(systemPrompt, prompt, {
+      mode: 'advanced',
+      responseFormat: 'json_object',
+    });
 
-    const response = await openai.chat.completions.create(
-      {
-        model: process.env.OPENAI_MODEL_ADVANCED || 'gpt-4o',
-        messages: [
-          { role: 'system', content: 'You are an expert code auditor. Return only valid JSON.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-        max_tokens: 16000,
-      },
-      { signal: controller.signal }
-    );
-
-    clearTimeout(timeoutId);
-
-    const content = response.choices[0].message.content || '{}';
     const repaired = JSON.parse(content);
-
-    // Validate repaired result
     const parsed = AdvancedAuditResultSchema.parse(repaired);
     return parsed as AdvancedAuditResult;
   } catch (error) {
-    console.error('Repair failed:', error);
+    logger.error('[Repair] Repair failed:', error);
     return null;
   }
 }
