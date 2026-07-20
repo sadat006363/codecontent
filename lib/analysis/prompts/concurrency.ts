@@ -1,6 +1,5 @@
-// ============================================================
-// 📁 فایل: lib/analysis/prompts/concurrency.ts
-// ============================================================
+// lib/analysis/prompts/concurrency.ts
+
 import { getBaseSystemInstructions } from './base';
 
 export function buildConcurrencyAuditPrompt(
@@ -112,38 +111,92 @@ ${numberedCode}
     - Explain whether each mechanism has distinct semantics.
     - Report duplication of responsibility if mechanisms redundantly control the same capacity.
 
-==================== OUTPUT SCHEMA (Matches AdvancedAuditResult) ====================
+==================== JSON OUTPUT STRUCTURE (MUST BE EXACT) ====================
+
+Return your analysis as a JSON object with the following fields.
+This structure is mandatory; do not add, remove, or rename any field.
 
 {
-  "summary": "Executive summary of concurrency findings",
+  "schemaVersion": "1.0",
+  "auditType": "concurrency",
+  "status": "complete",
+  "language": "the programming language of the source code",
+
+  "summary": "A concise 2-3 sentence summary of the concurrency issues found.",
+
+  "executionOverview": {
+    "entryPoints": ["list of entry point functions/methods"],
+    "taskSubmissionPoints": ["points where tasks are submitted to executors/pools"],
+    "blockingWaitPoints": ["points where code blocks/wait synchronously"],
+    "sharedResources": ["list of shared resources (e.g., locks, queues, caches)"],
+    "resourceLifecycle": ["acquisition and release patterns"]
+  },
+
   "findings": [
     {
+      "id": "F-001",
       "title": "Descriptive title",
-      "severity": "critical|high|medium|low|info",
-      "confidence": "definite|likely|conditional",
-      "category": "thread-starvation|deadlock|data-race|queue-misuse|config-drift",
+      "category": "liveness | thread-starvation | deadlock | queue-misuse | duplicate-submission | race-condition | shared-state | configuration | resource-lifecycle | timeout | interruption | cancellation | retry | error-handling | architectural-duplication | api-semantics | performance | security | maintainability | other",
+      "severity": "critical | high | medium | low | info",
+      "confidence": "definite | likely | conditional",
       "evidence": [
         {
           "startLine": 42,
           "endLine": 45,
-          "code": "relevant code snippet",
-          "explanation": "Why this is evidence"
+          "code": "the relevant code snippet",
+          "explanation": "why this evidence supports the finding"
         }
       ],
-      "executionPath": ["entryPoint", "step1", "step2", "failure"],
-      "triggerConditions": ["Condition 1", "Condition 2"],
-      "consequence": "What happens when triggered",
-      "technicalExplanation": "Detailed technical explanation",
-      "remediation": "How to fix",
+      "executionPath": ["step1", "step2", "failure point"],
+      "triggerConditions": ["condition 1", "condition 2"],
+      "consequence": "what happens when triggered",
+      "technicalExplanation": "in-depth technical explanation of the concurrency issue",
+      "remediation": "how to fix the concurrency issue",
       "relatedSymbols": ["symbol1", "symbol2"],
       "testToReproduce": {
-        "title": "Test name",
-        "setup": ["Setup step 1"],
-        "steps": ["Test step 1"],
-        "expectedResult": "Expected outcome"
-      }
+        "title": "Reproduction test title",
+        "setup": ["setup step 1"],
+        "steps": ["step 1"],
+        "expectedResult": "expected outcome"
+      } | null
     }
   ],
+
+  "architecturalObservations": [
+    {
+      "title": "Architectural observation title",
+      "explanation": "Detailed explanation",
+      "relatedFindingIds": ["F-001", "F-002"]
+    }
+  ],
+
+  "recommendedActions": [
+    {
+      "priority": 1,
+      "severity": "critical | high | medium | low | info",
+      "title": "Action title",
+      "action": "Description of the action",
+      "relatedFindingIds": ["F-001"]
+    }
+  ],
+
+  "suggestedTests": [
+    {
+      "title": "Test name",
+      "purpose": "What this test verifies",
+      "setup": ["Setup step 1"],
+      "steps": ["Test step 1"],
+      "expectedResult": "Expected outcome"
+    }
+  ],
+
+  "complexity": {
+    "time": "O(n)",
+    "space": "O(1)",
+    "resourceGrowth": "Linear/Logarithmic/Exponential etc.",
+    "assumptions": ["Assumption 1"]
+  },
+
   "scorecard": {
     "correctness": 0,
     "concurrencySafety": 0,
@@ -153,33 +206,43 @@ ${numberedCode}
     "maintainability": 0,
     "productionReadiness": 0
   },
+
   "verdict": {
-    "status": "approved|needs-changes|requires-major-changes|rejected",
-    "explanation": "Detailed explanation"
-  }
+    "status": "not-production-ready | requires-major-changes | requires-minor-changes | production-ready-with-monitoring",
+    "explanation": "Detailed verdict explanation with focus on concurrency risks"
+  },
+
+  "limitations": ["Limitation 1", "Limitation 2"],
+
+  "linkedin_post": "A professional LinkedIn post (max 300 characters) summarising the key concurrency insight."
 }
+
+==================== ENUM REFERENCE ====================
+
+Confidence: definite, likely, conditional
+Severity: critical, high, medium, low, info
+Finding categories: liveness, thread-starvation, deadlock, queue-misuse, duplicate-submission, race-condition, shared-state, configuration, resource-lifecycle, timeout, interruption, cancellation, retry, error-handling, architectural-duplication, api-semantics, performance, security, maintainability, other
+Verdict statuses: not-production-ready, requires-major-changes, requires-minor-changes, production-ready-with-monitoring
 
 ==================== ANTI-HALLUCINATION (CRITICAL) ====================
 
 - Do not invent missing code.
 - Do not claim a definite bug when required runtime conditions are unknown.
-- Use "Conditional" confidence for hazards that depend on pool size, call context, timing, or external behavior.
-- Use "Definite" only when the defect follows directly from the supplied source.
+- Use "conditional" confidence for hazards that depend on pool size, call context, timing, or external behavior.
+- Use "definite" only when the defect follows directly from the supplied source.
 - If line numbers are unavailable, say so instead of inventing them.
 - Findings without evidence are invalid and must not be returned.
-
-==================== FORBIDDEN GENERIC FINDINGS ====================
-
-DO NOT report these without specific evidence, execution path, and trigger conditions:
-- "thread pool exhaustion" (must show how)
-- "shared static resources" (must show which, where, why)
-- "blocking calls" (must show where, why, consequence)
-- "no proper shutdown" (must show what happens without it)
-- "thread safety may be an issue" (must show exact race condition)
+- Only cite code and line ranges present in the provided source.
+- Return null for testToReproduce when evidence is insufficient.
+- Use empty arrays [] for fields where no items exist (e.g., limitations, suggestedTests, etc.).
+- Always include all required fields, even if empty.
+- The output must be pure JSON; do NOT use Markdown code fences or any text before/after the JSON.
 
 ==================== MANDATORY OUTPUT ====================
 
-Return a JSON object matching the schema above.
+Return a JSON object matching the structure above.
 Use empty arrays when no findings exist.
+The linkedin_post field MUST NOT exceed 300 characters and should focus on a high-level technical takeaway about concurrency, liveness, or production risks.
+
 `;
 }

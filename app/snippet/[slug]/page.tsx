@@ -1,10 +1,11 @@
 // ============================================================
-// 📁 فایل: app/snippet/[slug]/page.tsx (اصلاح‌شده - اضافه شدن Explain و Prompt)
+// 📁 فایل: app/snippet/[slug]/page.tsx
 // ============================================================
 
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Snippet } from '@/types';
+import { SnippetDataSchema } from '@/types';
+import type { Snippet } from '@/types';
 import SnippetHeader from '@/components/snippet/SnippetHeader';
 import SnippetCode from '@/components/snippet/SnippetCode';
 import SnippetAnalysis from '@/components/snippet/SnippetAnalysis';
@@ -15,7 +16,6 @@ import SnippetTabLinks from '@/components/snippet/SnippetTabLinks';
 import SnippetShareButtons from '@/components/snippet/SnippetShareButtons';
 import SnippetFooter from '@/components/snippet/SnippetFooter';
 import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
-// ===== فایل‌های جدید =====
 import SnippetLineByLine from '@/components/snippet/SnippetLineByLine';
 import SnippetPrompt from '@/components/snippet/SnippetPrompt';
 
@@ -27,21 +27,66 @@ interface PageProps {
 }
 
 // ============================================================
-// 🔥 تابع دریافت اسنیپت با null-safe
+// 🔧 Helpers: Escape HTML (امنیت در برابر XSS)
 // ============================================================
-async function getSnippet(slug: string): Promise<Snippet | null> {
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+// ============================================================
+// 🔧 Helpers: بررسی وجود محتوا در آرایه‌ها و رشته‌ها
+// ============================================================
+function hasItems<T>(value: readonly T[] | null | undefined): boolean {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasExecutionOverview(value: Snippet['execution_overview']): boolean {
+  if (!value) return false;
+  return (
+    hasItems(value.entryPoints) ||
+    hasItems(value.taskSubmissionPoints) ||
+    hasItems(value.blockingWaitPoints) ||
+    hasItems(value.sharedResources) ||
+    hasItems(value.resourceLifecycle)
+  );
+}
+
+// ============================================================
+// 🔥 تابع دریافت اسنیپت با null-safe، اعتبارسنجی Zod و امنیت
+// ============================================================
+async function getSnippet(slug: string): Promise<Snippet> {
+  const normalizedSlug = slug.trim();
+
+  if (!normalizedSlug) {
+    throw new Error('Invalid slug');
+  }
+
   const { data, error } = await supabase
     .from('snippets')
     .select('*')
-    .eq('slug', slug)
-    .single();
+    .eq('slug', normalizedSlug)
+    .eq('is_public', true)
+    .maybeSingle();
 
-  if (error || !data) {
-    return null;
+  if (error) {
+    console.error(`[SnippetPage] Supabase error for slug "${normalizedSlug}":`, error);
+    throw new Error('Failed to load snippet');
   }
 
-  // ===== تبدیل داده‌ها با مقداردهی پیش‌فرض null-safe =====
-  const snippet: Snippet = {
+  if (!data) {
+    return null as any;
+  }
+
+  const candidate = {
     id: data.id ?? '',
     slug: data.slug ?? '',
     raw_code: data.raw_code ?? '',
@@ -52,49 +97,57 @@ async function getSnippet(slug: string): Promise<Snippet | null> {
     debug_analysis: data.debug_analysis ?? '-',
     optimization: data.optimization ?? '-',
     linkedin_post: data.linkedin_post ?? '',
-    is_public: data.is_public ?? true,
+    is_public: data.is_public ?? false,
     created_at: data.created_at ?? new Date().toISOString(),
-    
+
     username: data.username ?? null,
     github_username: data.github_username ?? null,
     avatar_url: data.avatar_url ?? null,
     card_image_url: data.card_image_url ?? null,
-    
-    // ===== Legacy فیلدها =====
-    code_walkthrough: data.code_walkthrough ?? null,
-    what_works_well: data.what_works_well ?? null,
-    bugs_and_risky_cases: data.bugs_and_risky_cases ?? null,
-    edge_cases: data.edge_cases ?? null,
-    performance_analysis: data.performance_analysis ?? null,
-    security_analysis: data.security_analysis ?? null,
-    production_readiness: data.production_readiness ?? null,
-    recommended_improvements: data.recommended_improvements ?? null,
-    improved_code: data.improved_code ?? null,
-    suggested_tests: data.suggested_tests ?? null,
-    scorecard: data.scorecard ?? null,
-    final_verdict_summary: data.final_verdict_summary ?? null,
-    final_verdict_approved: data.final_verdict_approved ?? null,
-    final_verdict_next_steps: data.final_verdict_next_steps ?? null,
+
+    code_walkthrough: data.code_walkthrough ?? undefined,
+    what_works_well: data.what_works_well ?? undefined,
+    bugs_and_risky_cases: data.bugs_and_risky_cases ?? undefined,
+    edge_cases: data.edge_cases ?? undefined,
+    performance_analysis: data.performance_analysis ?? undefined,
+    security_analysis: data.security_analysis ?? undefined,
+    production_readiness: data.production_readiness ?? undefined,
+    recommended_improvements: data.recommended_improvements ?? undefined,
+    improved_code: data.improved_code ?? undefined,
+    suggested_tests: data.suggested_tests ?? undefined,
+    scorecard: data.scorecard ?? undefined,
+    final_verdict_summary: data.final_verdict_summary ?? undefined,
+    final_verdict_approved: data.final_verdict_approved ?? undefined,
+    final_verdict_next_steps: data.final_verdict_next_steps ?? undefined,
     line_explanations: data.line_explanations ?? null,
     generated_prompt: data.generated_prompt ?? null,
-    
-    // ===== NEW Advanced فیلدها =====
-    findings: data.findings ?? null,
-    execution_overview: data.execution_overview ?? null,
-    architectural_observations: data.architectural_observations ?? null,
-    recommended_actions: data.recommended_actions ?? null,
-    suggested_tests_new: data.suggested_tests_new ?? null,
-    complexity: data.complexity ?? null,
-    scorecard_new: data.scorecard_new ?? null,
-    verdict: data.verdict ?? null,
-    limitations: data.limitations ?? null,
+
+    findings: data.findings ?? undefined,
+    execution_overview: data.execution_overview ?? undefined,
+    architectural_observations: data.architectural_observations ?? undefined,
+    recommended_actions: data.recommended_actions ?? undefined,
+    suggested_tests_new: data.suggested_tests_new ?? undefined,
+    complexity: data.complexity ?? undefined,
+    scorecard_new: data.scorecard_new ?? undefined,
+    verdict: data.verdict ?? undefined,
+    limitations: data.limitations ?? undefined,
   };
 
-  return snippet;
+  const validation = SnippetDataSchema.safeParse(candidate);
+
+  if (!validation.success) {
+    console.error(
+      `[SnippetPage] Invalid data for slug "${normalizedSlug}":`,
+      validation.error.flatten()
+    );
+    throw new Error('Snippet data is invalid');
+  }
+
+  return validation.data;
 }
 
 // ============================================================
-// 🔥 تابع کمکی برای هایلایت کد (سمت سرور)
+// 🔥 تابع کمکی برای هایلایت کد (امن در برابر XSS)
 // ============================================================
 async function highlightCode(code: string, language: string): Promise<string> {
   try {
@@ -103,45 +156,60 @@ async function highlightCode(code: string, language: string): Promise<string> {
       lang: language,
       theme: 'github-dark',
     });
-  } catch {
-    return `<pre class="text-[#cdd6f4]">${code}</pre>`;
+  } catch (error) {
+    console.error('[SnippetPage] Code highlighting failed:', error);
+    return `<pre class="overflow-x-auto text-[#cdd6f4]"><code>${escapeHtml(
+      code
+    )}</code></pre>`;
   }
 }
 
 // ============================================================
-// 🔥 تابع بررسی وجود Full Report
+// 🔥 تابع بررسی وجود Full Report (با در نظر گرفتن آرایه‌های خالی)
 // ============================================================
 function hasFullAnalysis(snippet: Snippet): boolean {
-  return !!(
-    snippet.code_walkthrough ||
-    snippet.what_works_well ||
-    snippet.bugs_and_risky_cases ||
-    snippet.edge_cases ||
-    snippet.performance_analysis ||
-    snippet.security_analysis ||
-    snippet.production_readiness ||
-    snippet.recommended_improvements ||
-    snippet.improved_code ||
-    snippet.suggested_tests ||
-    snippet.scorecard ||
-    snippet.final_verdict_summary ||
-    snippet.findings ||
-    snippet.execution_overview ||
-    snippet.architectural_observations ||
-    snippet.recommended_actions ||
-    snippet.suggested_tests_new ||
-    snippet.complexity ||
-    snippet.scorecard_new ||
-    snippet.verdict ||
-    snippet.limitations
+  return (
+    hasItems(snippet.code_walkthrough) ||
+    hasItems(snippet.what_works_well) ||
+    hasItems(snippet.bugs_and_risky_cases) ||
+    hasItems(snippet.edge_cases) ||
+    snippet.performance_analysis != null ||
+    snippet.security_analysis != null ||
+    snippet.production_readiness != null ||
+    hasItems(snippet.recommended_improvements) ||
+    hasText(snippet.improved_code) ||
+    hasItems(snippet.suggested_tests) ||
+    snippet.scorecard != null ||
+    hasText(snippet.final_verdict_summary) ||
+    hasItems(snippet.findings) ||
+    hasExecutionOverview(snippet.execution_overview) ||
+    hasItems(snippet.architectural_observations) ||
+    hasItems(snippet.recommended_actions) ||
+    hasItems(snippet.suggested_tests_new) ||
+    snippet.complexity != null ||
+    snippet.scorecard_new != null ||
+    snippet.verdict != null ||
+    hasItems(snippet.limitations)
   );
 }
 
+// ============================================================
+// 🏠 صفحه اصلی
+// ============================================================
 export default async function SnippetPage({ params }: PageProps) {
   const { slug } = await params;
-  const snippet = await getSnippet(slug);
 
-  if (!snippet) {
+  let snippet: Snippet | null = null;
+  let error: Error | null = null;
+
+  try {
+    snippet = await getSnippet(slug);
+  } catch (err) {
+    error = err as Error;
+    console.error('[SnippetPage] Error loading snippet:', error);
+  }
+
+  if (error || !snippet) {
     notFound();
   }
 
@@ -183,16 +251,13 @@ export default async function SnippetPage({ params }: PageProps) {
                 📊 Full report has not been generated for this snippet yet.
               </p>
               <p className="text-[#6c7086] text-xs mt-2">
-                Generate a full analysis to see detailed insights including code walkthrough, 
+                Generate a full analysis to see detailed insights including code walkthrough,
                 performance analysis, security review, and more.
               </p>
             </div>
           </div>
         )}
 
-        {/* ============================================================
-            🔥 بخش‌های جدید: Line-by-Line و Prompt
-            ============================================================ */}
         {snippet.line_explanations && snippet.line_explanations.length > 0 && (
           <SnippetLineByLine lineExplanations={snippet.line_explanations} />
         )}

@@ -1,10 +1,12 @@
-// ============================================================
-// 📁 فایل: lib/analysis/validator.ts
-// ============================================================
+// lib/analysis/validator.ts
+
 import { z } from 'zod';
-import { AdvancedAuditResultSchema } from './schema';
 import {
-  AdvancedAuditResult,
+  AdvancedAuditResultSchema,
+  type AdvancedAuditResult,
+  FindingIdSchema,
+} from './schema';
+import type {
   AuditValidationResult,
   ValidationIssue,
   DetectorResult,
@@ -12,44 +14,61 @@ import {
 import { getLineCount, isValidLineRange, getLineContent } from './numberedCode';
 import logger from '@/lib/logger';
 
+// ============================================================
+// VALIDATION: Evidence lines
+// ============================================================
+
 function validateEvidenceLines(
-  result: AdvancedAuditResult,
+  result: any, // 🔥 Changed from AdvancedAuditResult to any
   code: string
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const totalLines = getLineCount(code);
 
-  for (const finding of result.findings) {
-    for (const evidence of finding.evidence) {
-      if (!isValidLineRange(code, evidence.startLine, evidence.endLine)) {
+  const findings = result?.findings ?? [];
+
+  for (const finding of findings) {
+    const evidence = finding?.evidence ?? [];
+    for (const ev of evidence) {
+      const startLine = ev?.startLine ?? 0;
+      const endLine = ev?.endLine ?? 0;
+
+      if (!isValidLineRange(code, startLine, endLine)) {
         issues.push({
           code: 'EVIDENCE_LINE_OUT_OF_RANGE',
           severity: 'error',
-          message: `Evidence line range ${evidence.startLine}-${evidence.endLine} is out of bounds (total ${totalLines} lines)`,
-          relatedLines: [evidence.startLine, evidence.endLine],
+          message: `Evidence line range ${startLine}-${endLine} is out of bounds (total ${totalLines} lines)`,
+          relatedLines: [startLine, endLine],
           expectedCoverage: 'All evidence lines must be within source code range',
         });
         continue;
       }
-      if (evidence.startLine > evidence.endLine) {
+
+      if (startLine > endLine) {
         issues.push({
           code: 'EVIDENCE_LINE_REVERSED',
           severity: 'error',
-          message: `Evidence startLine ${evidence.startLine} > endLine ${evidence.endLine}`,
-          relatedLines: [evidence.startLine, evidence.endLine],
+          message: `Evidence startLine ${startLine} > endLine ${endLine}`,
+          relatedLines: [startLine, endLine],
           expectedCoverage: 'startLine must be <= endLine',
         });
         continue;
       }
-      const actualCode = getLineContent(code, evidence.startLine, evidence.endLine);
-      if (actualCode && !evidence.code.trim()) {
-        issues.push({
-          code: 'EVIDENCE_CODE_EMPTY',
-          severity: 'warning',
-          message: `Evidence code is empty for lines ${evidence.startLine}-${evidence.endLine}`,
-          relatedLines: [evidence.startLine, evidence.endLine],
-          expectedCoverage: 'Evidence code should contain relevant code snippet',
-        });
+
+      const actualCode = getLineContent(code, startLine, endLine);
+      const evidenceCode = ev?.code ?? '';
+      if (actualCode && evidenceCode.trim()) {
+        const normalizedActual = actualCode.replace(/\s+/g, ' ').trim();
+        const normalizedEvidence = evidenceCode.replace(/\s+/g, ' ').trim();
+        if (!normalizedActual.includes(normalizedEvidence) && !normalizedEvidence.includes(normalizedActual)) {
+          issues.push({
+            code: 'EVIDENCE_CODE_MISMATCH',
+            severity: 'warning',
+            message: `Evidence code does not appear to match the actual source at lines ${startLine}-${endLine}`,
+            relatedLines: [startLine, endLine],
+            expectedCoverage: 'Evidence code should be a snippet from the source',
+          });
+        }
       }
     }
   }
@@ -57,77 +76,62 @@ function validateEvidenceLines(
   return issues;
 }
 
-function validateCriticalFindings(result: AdvancedAuditResult): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+// ============================================================
+// VALIDATION: Finding IDs and uniqueness
+// ============================================================
 
-  for (const finding of result.findings) {
-    if (finding.severity === 'critical' || finding.severity === 'high') {
-      if (finding.evidence.length === 0) {
-        issues.push({
-          code: 'CRITICAL_NO_EVIDENCE',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no evidence`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must have at least one evidence item',
-        });
-      }
-      if (!finding.executionPath || finding.executionPath.length === 0) {
-        issues.push({
-          code: 'MISSING_EXECUTION_PATH',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no execution path`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must include executionPath',
-        });
-      }
-      if (!finding.triggerConditions || finding.triggerConditions.length === 0) {
-        issues.push({
-          code: 'MISSING_TRIGGER_CONDITIONS',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no trigger conditions`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must include triggerConditions',
-        });
-      }
-      if (!finding.consequence || finding.consequence.trim() === '') {
-        issues.push({
-          code: 'CRITICAL_NO_CONSEQUENCE',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no consequence`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must include consequence',
-        });
-      }
-      if (!finding.remediation || finding.remediation.trim() === '') {
-        issues.push({
-          code: 'CRITICAL_NO_REMEDIATION',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no remediation`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must include remediation',
-        });
-      }
-      if (!finding.testToReproduce) {
-        issues.push({
-          code: 'CRITICAL_NO_TEST_TO_REPRODUCE',
-          severity: 'error',
-          message: `Critical/high finding "${finding.title}" has no test to reproduce`,
-          relatedLines: [],
-          expectedCoverage: 'Critical/high findings must include testToReproduce',
-        });
-      }
+function validateFindingIds(
+  result: any // 🔥 Changed from AdvancedAuditResult to any
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const ids = new Set<string>();
+
+  const findings = result?.findings ?? [];
+
+  for (const finding of findings) {
+    const id = finding?.id ?? '';
+    const idCheck = FindingIdSchema.safeParse(id);
+    if (!idCheck.success) {
+      issues.push({
+        code: 'INVALID_FINDING_ID_FORMAT',
+        severity: 'error',
+        message: `Finding ID "${id}" does not match required format F-\\d{3,}`,
+        relatedLines: [],
+        expectedCoverage: 'Finding IDs must follow format F-001, F-002, etc.',
+      });
+      continue;
+    }
+
+    if (ids.has(id)) {
+      issues.push({
+        code: 'DUPLICATE_FINDING_ID',
+        severity: 'error',
+        message: `Duplicate finding ID "${id}" found`,
+        relatedLines: [],
+        expectedCoverage: 'All finding IDs must be unique',
+      });
+    } else {
+      ids.add(id);
     }
   }
 
   return issues;
 }
 
-function validateRelatedIds(result: AdvancedAuditResult): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const allIds = new Set(result.findings.map((f) => f.id));
+// ============================================================
+// VALIDATION: Related IDs (references)
+// ============================================================
 
-  for (const obs of result.architecturalObservations) {
-    for (const id of obs.relatedFindingIds) {
+function validateRelatedIds(
+  result: any // 🔥 Changed from AdvancedAuditResult to any
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const allIds = new Set((result?.findings ?? []).map((f: any) => f?.id ?? ''));
+
+  const observations = result?.architecturalObservations ?? [];
+  for (const obs of observations) {
+    const relatedIds = obs?.relatedFindingIds ?? [];
+    for (const id of relatedIds) {
       if (!allIds.has(id)) {
         issues.push({
           code: 'RELATED_ID_NOT_FOUND',
@@ -140,8 +144,10 @@ function validateRelatedIds(result: AdvancedAuditResult): ValidationIssue[] {
     }
   }
 
-  for (const action of result.recommendedActions) {
-    for (const id of action.relatedFindingIds) {
+  const actions = result?.recommendedActions ?? [];
+  for (const action of actions) {
+    const relatedIds = action?.relatedFindingIds ?? [];
+    for (const id of relatedIds) {
       if (!allIds.has(id)) {
         issues.push({
           code: 'RELATED_ID_NOT_FOUND',
@@ -157,12 +163,46 @@ function validateRelatedIds(result: AdvancedAuditResult): ValidationIssue[] {
   return issues;
 }
 
-function validateVerdictConsistency(result: AdvancedAuditResult): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const hasCritical = result.findings.some((f) => f.severity === 'critical');
-  const hasHigh = result.findings.some((f) => f.severity === 'high');
+// ============================================================
+// VALIDATION: Scorecard ranges
+// ============================================================
 
-  if (hasCritical && result.verdict.status === 'production-ready-with-monitoring') {
+function validateScorecard(
+  result: any // 🔥 Changed from AdvancedAuditResult to any
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const scores = result?.scorecard ?? {};
+
+  for (const [key, value] of Object.entries(scores)) {
+    if (typeof value !== 'number' || value < 0 || value > 10) {
+      issues.push({
+        code: 'SCORECARD_VALUE_OUT_OF_RANGE',
+        severity: 'error',
+        message: `Scorecard field "${key}" has value ${value}, expected between 0 and 10`,
+        relatedLines: [],
+        expectedCoverage: 'All scorecard values must be between 0 and 10',
+      });
+    }
+  }
+
+  return issues;
+}
+
+// ============================================================
+// VALIDATION: Verdict consistency
+// ============================================================
+
+function validateVerdictConsistency(
+  result: any // 🔥 Changed from AdvancedAuditResult to any
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  const findings = result?.findings ?? [];
+  const hasCritical = findings.some((f: any) => f?.severity === 'critical');
+  const hasHigh = findings.some((f: any) => f?.severity === 'high');
+
+  const verdictStatus = result?.verdict?.status ?? '';
+  if (hasCritical && verdictStatus === 'production-ready-with-monitoring') {
     issues.push({
       code: 'VERDICT_INCONSISTENT',
       severity: 'warning',
@@ -172,7 +212,7 @@ function validateVerdictConsistency(result: AdvancedAuditResult): ValidationIssu
     });
   }
 
-  if (hasHigh && result.verdict.status === 'production-ready-with-monitoring') {
+  if (hasHigh && verdictStatus === 'production-ready-with-monitoring') {
     issues.push({
       code: 'VERDICT_INCONSISTENT',
       severity: 'warning',
@@ -185,105 +225,244 @@ function validateVerdictConsistency(result: AdvancedAuditResult): ValidationIssu
   return issues;
 }
 
+// ============================================================
+// VALIDATION: Ensure linkedin_post is present and valid
+// ============================================================
+
+function validateLinkedInPost(
+  result: any // 🔥 Changed from AdvancedAuditResult to any
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const post = result?.linkedin_post ?? '';
+
+  if (!post || post.trim().length === 0) {
+    issues.push({
+      code: 'LINKEDIN_POST_EMPTY',
+      severity: 'error',
+      message: 'linkedin_post is required but missing or empty',
+      relatedLines: [],
+      expectedCoverage: 'linkedin_post must be a non-empty string between 1 and 300 characters',
+    });
+  } else if (post.length > 300) {
+    issues.push({
+      code: 'LINKEDIN_POST_TOO_LONG',
+      severity: 'error',
+      message: `linkedin_post exceeds 300 characters (${post.length})`,
+      relatedLines: [],
+      expectedCoverage: 'linkedin_post must be at most 300 characters',
+    });
+  }
+
+  return issues;
+}
+
+// ============================================================
+// SEMANTIC VALIDATION: Concurrency-specific coverage
+// ============================================================
+
+function validateConcurrencyCoverage(
+  result: any, // 🔥 Changed from AdvancedAuditResult to any
+  detectorResult: DetectorResult
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const signals = detectorResult?.signals ?? [];
+
+  if (detectorResult?.requiresConcurrencyAudit && result?.auditType === 'generic') {
+    issues.push({
+      code: 'MISSING_CONCURRENCY_ANALYSIS',
+      severity: 'error',
+      message: 'Concurrency signals detected but audit type is generic',
+      relatedLines: signals.map((s: any) => s?.line ?? 0),
+      expectedCoverage: 'Should analyze concurrency-related issues',
+    });
+  }
+
+  const hasExecutorSignals = signals.some(
+    (s: any) => s?.type === 'EXECUTOR' || s?.type === 'THREAD_POOL' || s?.type === 'EXECUTOR_SUBMIT'
+  );
+  const findings = result?.findings ?? [];
+  const hasLivenessFindings = findings.some(
+    (f: any) => f?.category === 'liveness' || f?.category === 'thread-starvation' || f?.category === 'deadlock'
+  );
+  if (hasExecutorSignals && !hasLivenessFindings) {
+    issues.push({
+      code: 'MISSING_LIVENESS_ANALYSIS',
+      severity: 'warning',
+      message: 'Executor signals detected but no liveness findings reported',
+      relatedLines: signals.filter((s: any) =>
+        ['EXECUTOR', 'THREAD_POOL', 'EXECUTOR_SUBMIT'].includes(s?.type)
+      ).map((s: any) => s?.line ?? 0),
+      expectedCoverage: 'Should analyze liveness risks (deadlock, starvation)',
+    });
+  }
+
+  const hasFutureGet = signals.some((s: any) => s?.type === 'FUTURE_GET');
+  const hasBlockingAnalysis = findings.some(
+    (f: any) => f?.category === 'thread-starvation' || f?.category === 'liveness'
+  );
+  if (hasFutureGet && !hasBlockingAnalysis) {
+    issues.push({
+      code: 'MISSING_BLOCKING_WAIT_ANALYSIS',
+      severity: 'warning',
+      message: 'Future.get detected but no blocking wait analysis found',
+      relatedLines: signals.filter((s: any) => s?.type === 'FUTURE_GET').map((s: any) => s?.line ?? 0),
+      expectedCoverage: 'Should analyze blocking waits and nested submission risks',
+    });
+  }
+
+  return issues;
+}
+
+// ============================================================
+// MAIN VALIDATION FUNCTION
+// ============================================================
+
 export function validateSemanticCompleteness(
-  result: AdvancedAuditResult,
+  result: any, // 🔥 Changed from AdvancedAuditResult to any
   detectorResult: DetectorResult,
   code: string
 ): AuditValidationResult {
   const allIssues: ValidationIssue[] = [];
 
+  // --- STRUCTURAL VALIDATION (Zod) ---
   let structurallyValid = true;
   try {
     AdvancedAuditResultSchema.parse(result);
   } catch (error) {
     structurallyValid = false;
-    allIssues.push({
-      code: 'SCHEMA_VALIDATION_FAILED',
-      severity: 'error',
-      message: error instanceof Error ? error.message : 'Schema validation failed',
-      relatedLines: [],
-      expectedCoverage: 'All fields must match the schema',
-    });
+    if (error instanceof z.ZodError) {
+      for (const issue of error.issues) {
+        allIssues.push({
+          code: 'SCHEMA_VALIDATION_FAILED',
+          severity: 'error',
+          message: `${issue.path.join('.')}: ${issue.message}`,
+          relatedLines: [],
+          expectedCoverage: 'All fields must match the schema',
+        });
+      }
+    } else {
+      allIssues.push({
+        code: 'SCHEMA_VALIDATION_FAILED',
+        severity: 'error',
+        message: error instanceof Error ? error.message : 'Schema validation failed',
+        relatedLines: [],
+        expectedCoverage: 'All fields must match the schema',
+      });
+    }
   }
 
-  const evidenceIssues = validateEvidenceLines(result, code);
-  allIssues.push(...evidenceIssues);
+  // --- SEMANTIC VALIDATIONS (only if structurally valid to avoid noise) ---
+  if (structurallyValid) {
+    try {
+      const evidenceIssues = validateEvidenceLines(result, code);
+      allIssues.push(...evidenceIssues);
+    } catch (err) {
+      logger.error('[Validator] validateEvidenceLines crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateEvidenceLines crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All evidence validation should complete without crashing',
+      });
+    }
 
-  const criticalIssues = validateCriticalFindings(result);
-  allIssues.push(...criticalIssues);
+    try {
+      const idIssues = validateFindingIds(result);
+      allIssues.push(...idIssues);
+    } catch (err) {
+      logger.error('[Validator] validateFindingIds crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateFindingIds crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All ID validation should complete without crashing',
+      });
+    }
 
-  const relatedIssues = validateRelatedIds(result);
-  allIssues.push(...relatedIssues);
+    try {
+      const relatedIssues = validateRelatedIds(result);
+      allIssues.push(...relatedIssues);
+    } catch (err) {
+      logger.error('[Validator] validateRelatedIds crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateRelatedIds crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All related IDs validation should complete without crashing',
+      });
+    }
 
-  const verdictIssues = validateVerdictConsistency(result);
-  allIssues.push(...verdictIssues);
+    try {
+      const scorecardIssues = validateScorecard(result);
+      allIssues.push(...scorecardIssues);
+    } catch (err) {
+      logger.error('[Validator] validateScorecard crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateScorecard crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All scorecard validation should complete without crashing',
+      });
+    }
 
-  let semanticallyComplete = true;
-  const semanticIssues: ValidationIssue[] = [];
+    try {
+      const verdictIssues = validateVerdictConsistency(result);
+      allIssues.push(...verdictIssues);
+    } catch (err) {
+      logger.error('[Validator] validateVerdictConsistency crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateVerdictConsistency crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All verdict consistency validation should complete without crashing',
+      });
+    }
 
-  if (detectorResult.requiresConcurrencyAudit && result.auditType === 'generic') {
-    semanticIssues.push({
-      code: 'MISSING_CONCURRENCY_ANALYSIS',
-      severity: 'error',
-      message: 'Concurrency signals detected but audit type is generic (not concurrency)',
-      relatedLines: detectorResult.signals.map((s) => s.line),
-      expectedCoverage: 'Should analyze concurrency-related issues',
-    });
+    try {
+      const linkedinIssues = validateLinkedInPost(result);
+      allIssues.push(...linkedinIssues);
+    } catch (err) {
+      logger.error('[Validator] validateLinkedInPost crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateLinkedInPost crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All linkedin_post validation should complete without crashing',
+      });
+    }
+
+    try {
+      const concurrencyIssues = validateConcurrencyCoverage(result, detectorResult);
+      allIssues.push(...concurrencyIssues);
+    } catch (err) {
+      logger.error('[Validator] validateConcurrencyCoverage crashed:', err);
+      allIssues.push({
+        code: 'SEMANTIC_VALIDATION_CRASH',
+        severity: 'error',
+        message: `validateConcurrencyCoverage crashed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        relatedLines: [],
+        expectedCoverage: 'All concurrency coverage validation should complete without crashing',
+      });
+    }
   }
 
-  const hasExecutorSignals = detectorResult.signals.some(
-    (s) => s.type === 'EXECUTOR' || s.type === 'THREAD_POOL' || s.type === 'EXECUTOR_SUBMIT'
-  );
-  const hasLivenessFindings = result.findings.some(
-    (f) => f.category === 'liveness' || f.category === 'thread-starvation' || f.category === 'deadlock'
-  );
-  if (hasExecutorSignals && !hasLivenessFindings) {
-    semanticIssues.push({
-      code: 'MISSING_LIVENESS_ANALYSIS',
-      severity: 'warning',
-      message: 'Executor signals detected but no liveness findings reported',
-      relatedLines: detectorResult.signals.filter((s) =>
-        ['EXECUTOR', 'THREAD_POOL', 'EXECUTOR_SUBMIT'].includes(s.type)
-      ).map((s) => s.line),
-      expectedCoverage: 'Should analyze liveness risks (deadlock, starvation)',
-    });
-  }
-
-  const hasFutureGet = detectorResult.signals.some((s) => s.type === 'FUTURE_GET');
-  const hasBlockingAnalysis = result.findings.some(
-    (f) => f.category === 'thread-starvation' || f.category === 'liveness'
-  );
-  if (hasFutureGet && !hasBlockingAnalysis) {
-    semanticIssues.push({
-      code: 'MISSING_BLOCKING_WAIT_ANALYSIS',
-      severity: 'warning',
-      message: 'Future.get detected but no blocking wait analysis found',
-      relatedLines: detectorResult.signals.filter((s) => s.type === 'FUTURE_GET').map((s) => s.line),
-      expectedCoverage: 'Should analyze blocking waits and nested submission risks',
-    });
-  }
-
-  const hasQueueOffer = detectorResult.signals.some((s) => s.type === 'QUEUE_OFFER' || s.value.includes('offer'));
-  const hasQueueAnalysis = result.findings.some((f) => f.category === 'queue-misuse');
-  if (hasQueueOffer && !hasQueueAnalysis) {
-    semanticIssues.push({
-      code: 'MISSING_QUEUE_ANALYSIS',
-      severity: 'warning',
-      message: 'Queue offer detected but no queue-misuse analysis found',
-      relatedLines: detectorResult.signals.filter((s) => s.value.includes('offer')).map((s) => s.line),
-      expectedCoverage: 'Should analyze queue manipulation and execute mismatch',
-    });
-  }
-
-  allIssues.push(...semanticIssues);
-
-  if (semanticIssues.some((i) => i.severity === 'error')) {
-    semanticallyComplete = false;
-  }
-
+  // 🔥 FIX: repairRequired remains the same
   const repairRequired =
     !structurallyValid ||
     allIssues.some(
+      (i) => i.severity === 'error' && i.code !== 'EVIDENCE_LINE_OUT_OF_RANGE'
+    );
+
+  // 🔥 FIX: semanticallyComplete MUST include structurallyValid
+  const semanticallyComplete =
+    structurallyValid &&
+    !allIssues.some(
       (i) => i.severity === 'error' && i.code !== 'EVIDENCE_LINE_OUT_OF_RANGE'
     );
 

@@ -1,6 +1,11 @@
+// types/index.ts
+
+import { z } from 'zod';
+
 // ============================================================
-// 📁 فایل: types/index.ts
+// 🔥 تایپ‌های پایه و مشترک
 // ============================================================
+
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type Confidence = 'definite' | 'likely' | 'conditional';
 export type AuditType = 'generic' | 'concurrency';
@@ -27,6 +32,10 @@ export type FindingCategory =
   | 'security'
   | 'maintainability'
   | 'other';
+
+// ============================================================
+// 🔥 تایپ‌های ساختار یافته برای Advanced Audit
+// ============================================================
 
 export interface EvidenceItem {
   startLine: number;
@@ -65,6 +74,10 @@ export interface AuditScorecard {
   maintainability: number;
   productionReadiness: number;
 }
+
+// ============================================================
+// 🔥 تایپ اصلی AdvancedAuditResult (خروجی پایپلاین)
+// ============================================================
 
 export interface AdvancedAuditResult {
   schemaVersion: '1.0';
@@ -120,6 +133,10 @@ export interface AdvancedAuditResult {
   highLevelSummary?: string;
 }
 
+// ============================================================
+// 🔥 تایپ GenerateResponse (خروجی از AI)
+// ============================================================
+
 export interface GenerateResponse extends Partial<AdvancedAuditResult> {
   analysis?: string;
   card_title?: string;
@@ -142,7 +159,11 @@ export interface GenerateResponse extends Partial<AdvancedAuditResult> {
   error?: string;
 }
 
-export interface Snippet {
+// ============================================================
+// 🔥 تایپ‌های قدیمی (Snippet - برای سازگاری با عقب)
+// ============================================================
+
+export interface SnippetLegacy {
   id: string;
   slug: string;
   raw_code: string;
@@ -186,6 +207,270 @@ export interface Snippet {
   limitations?: string[] | null;
 }
 
+// ============================================================
+// 🔥 تعریف Schemas با Zod برای اعتبارسنجی داده‌ها
+// ============================================================
+
+// --- Schema برای Evidence ---
+const EvidenceSchema = z.object({
+  startLine: z.number().int().positive(),
+  endLine: z.number().int().positive(),
+  code: z.string(),
+  explanation: z.string(),
+});
+
+// --- Schema برای Finding ---
+const FindingSchema = z.object({
+  id: z.string().regex(/^F-\d{3,}$/),
+  title: z.string().min(1),
+  category: z.string(),
+  severity: z.enum(['critical', 'high', 'medium', 'low', 'info']),
+  confidence: z.enum(['definite', 'likely', 'conditional']),
+  evidence: z.array(EvidenceSchema),
+  executionPath: z.array(z.string()),
+  triggerConditions: z.array(z.string()),
+  consequence: z.string(),
+  technicalExplanation: z.string(),
+  remediation: z.string(),
+  relatedSymbols: z.array(z.string()),
+  testToReproduce: z
+    .object({
+      title: z.string(),
+      setup: z.array(z.string()),
+      steps: z.array(z.string()),
+      expectedResult: z.string(),
+    })
+    .nullable(),
+});
+
+// --- Schema برای Scorecard Legacy (0-10) ---
+const ScorecardLegacySchema = z.object({
+  correctness: z.number().min(0).max(10),
+  readability: z.number().min(0).max(10),
+  performance: z.number().min(0).max(10),
+  maintainability: z.number().min(0).max(10),
+  productionReadiness: z.number().min(0).max(10),
+  security: z.number().min(0).max(10).optional(),
+  overall: z.number().min(0).max(10).optional(),
+});
+
+// --- Schema برای Scorecard New (0-100) ---
+const ScorecardNewSchema = z.object({
+  correctness: z.number().min(0).max(100),
+  concurrencySafety: z.number().min(0).max(100),
+  liveness: z.number().min(0).max(100),
+  errorHandling: z.number().min(0).max(100),
+  resourceManagement: z.number().min(0).max(100),
+  maintainability: z.number().min(0).max(100),
+  productionReadiness: z.number().min(0).max(100),
+});
+
+// --- Schema برای Verdict New ---
+const VerdictNewSchema = z.object({
+  status: z.enum([
+    'not-production-ready',
+    'requires-major-changes',
+    'requires-minor-changes',
+    'production-ready-with-monitoring',
+  ]),
+  explanation: z.string(),
+});
+
+// --- Schema برای Execution Overview ---
+const ExecutionOverviewSchema = z.object({
+  entryPoints: z.array(z.string()),
+  taskSubmissionPoints: z.array(z.string()),
+  blockingWaitPoints: z.array(z.string()),
+  sharedResources: z.array(z.string()),
+  resourceLifecycle: z.array(z.string()),
+});
+
+// --- Schema برای Code Walkthrough ---
+const CodeWalkthroughItemSchema = z.object({
+  section: z.string(),
+  explanation: z.string(),
+});
+
+// --- Schema برای Architectural Observation ---
+const ArchitecturalObservationSchema = z.object({
+  title: z.string(),
+  explanation: z.string(),
+  relatedFindingIds: z.array(z.string()),
+});
+
+// --- Schema برای Recommended Action ---
+const RecommendedActionSchema = z.object({
+  priority: z.number().int().positive(),
+  severity: z.string(),
+  title: z.string(),
+  action: z.string(),
+  relatedFindingIds: z.array(z.string()),
+});
+
+// --- Schema برای Suggested Test (New) ---
+const SuggestedTestNewSchema = z.object({
+  title: z.string(),
+  purpose: z.string(),
+  setup: z.array(z.string()),
+  steps: z.array(z.string()),
+  expectedResult: z.string(),
+});
+
+// --- Schema برای Complexity ---
+const ComplexitySchema = z.object({
+  time: z.string(),
+  space: z.string(),
+  resourceGrowth: z.string(),
+  assumptions: z.array(z.string()),
+});
+
+// ============================================================
+// 🔥 Schema اصلی برای داده‌های Snippet (منبع واحد حقیقت)
+// ============================================================
+
+export const SnippetDataSchema = z.object({
+  // فیلدهای اصلی (همیشه وجود دارند)
+  id: z.string(),
+  slug: z.string(),
+  raw_code: z.string(),
+  language: z.string(),
+  card_title: z.string(),
+  key_concept: z.string(),
+  what_this_code_does: z.string(),
+  debug_analysis: z.string(),
+  optimization: z.string(),
+  linkedin_post: z.string(),
+  is_public: z.boolean(),
+  created_at: z.string(),
+
+  // فیلدهای nullable کاربر
+  username: z.string().nullable().optional(),
+  github_username: z.string().nullable().optional(),
+  avatar_url: z.string().nullable().optional(),
+  card_image_url: z.string().nullable().optional(),
+
+  // ===== Legacy فیلدها =====
+  code_walkthrough: z.array(CodeWalkthroughItemSchema).optional(),
+  what_works_well: z.array(z.string()).optional(),
+  bugs_and_risky_cases: z
+    .array(
+      z.object({
+        issue: z.string(),
+        impact: z.string(),
+        example: z.string(),
+      })
+    )
+    .optional(),
+  edge_cases: z
+    .array(
+      z.object({
+        case: z.string(),
+        currentBehavior: z.string(),
+        expectedBehavior: z.string(),
+        risk: z.enum(['Low', 'Medium', 'High']),
+      })
+    )
+    .optional(),
+  performance_analysis: z
+    .object({
+      timeComplexity: z.array(
+        z.object({
+          target: z.string(),
+          complexity: z.string(),
+          explanation: z.string(),
+        })
+      ),
+      spaceComplexity: z.array(
+        z.object({
+          target: z.string(),
+          complexity: z.string(),
+          explanation: z.string(),
+        })
+      ),
+      scalabilityNotes: z.array(z.string()),
+    })
+    .optional(),
+  security_analysis: z
+    .object({
+      issues: z.array(z.string()),
+      recommendations: z.array(z.string()),
+      severity: z.enum(['Low', 'Medium', 'High', 'Critical']),
+    })
+    .optional(),
+  production_readiness: z
+    .object({
+      isProductionReady: z.boolean(),
+      reasons: z.array(z.string()),
+      requiredChanges: z.array(z.string()),
+    })
+    .optional(),
+  recommended_improvements: z
+    .array(
+      z.object({
+        priority: z.enum(['High', 'Medium', 'Low']),
+        improvement: z.string(),
+        reason: z.string(),
+      })
+    )
+    .optional(),
+  improved_code: z.string().optional(),
+  suggested_tests: z
+    .array(
+      z.object({
+        name: z.string(),
+        input: z.string(),
+        expectedOutput: z.string(),
+        type: z.enum(['Normal', 'Edge', 'Invalid']),
+      })
+    )
+    .optional(),
+  scorecard: ScorecardLegacySchema.optional(),
+  final_verdict_summary: z.string().optional(),
+  final_verdict_approved: z.boolean().optional(),
+  final_verdict_next_steps: z.string().optional(),
+  line_explanations: z.array(z.any()).nullable().optional(),
+  generated_prompt: z.string().nullable().optional(),
+
+  // ===== NEW Advanced فیلدها =====
+  findings: z.array(FindingSchema).optional(),
+  execution_overview: ExecutionOverviewSchema.optional(),
+  architectural_observations: z.array(ArchitecturalObservationSchema).optional(),
+  recommended_actions: z.array(RecommendedActionSchema).optional(),
+  suggested_tests_new: z.array(SuggestedTestNewSchema).optional(),
+  complexity: ComplexitySchema.optional(),
+  scorecard_new: ScorecardNewSchema.optional(),
+  verdict: VerdictNewSchema.optional(),
+  limitations: z.array(z.string()).optional(),
+});
+
+// ============================================================
+// 🔥 استخراج تایپ از Schema (منبع واحد حقیقت)
+// ============================================================
+
+export type Snippet = z.infer<typeof SnippetDataSchema>;
+
+// ============================================================
+// 🔥 تایپ‌های کمکی و یکپارچه برای تست‌ها
+// ============================================================
+
+export interface UnifiedTest {
+  title: string;
+  purpose: string;
+  setup: string[];
+  steps: string[];
+  expectedResult: string;
+  _legacy?: {
+    name?: string;
+    input?: string;
+    expectedOutput?: string;
+    type?: 'Normal' | 'Edge' | 'Invalid';
+  };
+}
+
+// ============================================================
+// 🔥 تایپ‌های درخواست و پاسخ
+// ============================================================
+
 export interface GenerateRequest {
   code: string;
   language: string;
@@ -201,6 +486,10 @@ export interface CreateSnippetResponse {
   github_username?: string | null;
   error?: string;
 }
+
+// ============================================================
+// 🔥 تایپ‌های Legacy (ساختار قدیمی)
+// ============================================================
 
 export interface CodeWalkthroughItem {
   section: string;
@@ -273,9 +562,6 @@ export interface ScorecardLegacy {
   overall: number;
 }
 
-// 🔥 Alias برای سازگاری با عقب (برای فایل‌هایی که از Scorecard استفاده می‌کنند)
-export type Scorecard = ScorecardLegacy;
-
 export interface FinalVerdict {
   summary: string;
   approved: boolean;
@@ -287,6 +573,10 @@ export interface LineExplanation {
   code: string;
   explanation: string;
 }
+
+// ============================================================
+// 🔥 تایپ‌های کمکی برای Validator
+// ============================================================
 
 export interface ValidationIssue {
   code: string;
@@ -302,6 +592,10 @@ export interface ValidationResult {
   issues: ValidationIssue[];
   repairRequired: boolean;
 }
+
+// ============================================================
+// 🔥 تایپ‌های Detector
+// ============================================================
 
 export interface ConcurrencySignal {
   type: string;
