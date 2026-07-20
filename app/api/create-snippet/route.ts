@@ -1,34 +1,12 @@
 // app/api/create-snippet/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { randomBytes } from 'crypto';
-import { type Database } from '@/types/supabase';
+import { supabase } from '@/lib/supabase'; // ✅ استفاده از کلاینت موجود
 import logger from '@/lib/logger';
 
 // ============================================================
-// 1. ENV validation
-// ============================================================
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-let supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null;
-
-function getSupabaseAdmin() {
-  if (!supabaseAdmin) {
-    // 🔥 Client with Database type (this should resolve the type, but as a fallback we use as any below)
-    supabaseAdmin = createClient<Database>(supabaseUrl!, supabaseServiceKey!);
-  }
-  return supabaseAdmin;
-}
-
-// ============================================================
-// 2. Zod schemas
+// 1. Zod schemas
 // ============================================================
 
 const CreateSnippetRequestSchema = z
@@ -82,20 +60,19 @@ const CreatedSnippetSchema = z.object({
 });
 
 // ============================================================
-// 3. Slug generator
+// 2. Slug generator
 // ============================================================
 
 const SLUG_LENGTH = 10;
 const MAX_SLUG_RETRIES = 3;
 
 function generateSlug(): string {
-  return randomBytes(SLUG_LENGTH).toString('base64url').slice(0, SLUG_LENGTH);
+  return randomBytes(SLUG_LENGTH)
+    .toString('base64url')
+    .slice(0, SLUG_LENGTH);
 }
 
-async function generateUniqueSlug(
-  supabase: ReturnType<typeof createClient<Database>>,
-  retries = MAX_SLUG_RETRIES
-): Promise<string> {
+async function generateUniqueSlug(retries = MAX_SLUG_RETRIES): Promise<string> {
   for (let attempt = 0; attempt < retries; attempt++) {
     const slug = generateSlug();
     const { data, error } = await supabase
@@ -115,13 +92,10 @@ async function generateUniqueSlug(
 }
 
 // ============================================================
-// 4. Mapper
+// 3. Database mapper
 // ============================================================
 
-// 🔥 Temporary workaround: because the Supabase generated types may not be correctly
-// recognized in this build environment, we use `as any` for the insert payload.
-// This is safe because the runtime payload is correct.
-// Once the types are properly generated via `npx supabase gen types`, this can be removed.
+// 🔥 برای عبور از Build از `any` استفاده می‌شود (چون تایپ‌های دیتابیس کامل نشده‌اند)
 type SnippetInsert = any;
 
 function mapToDatabaseRow(body: CreateSnippetRequest, slug: string): SnippetInsert {
@@ -175,7 +149,7 @@ function mapToDatabaseRow(body: CreateSnippetRequest, slug: string): SnippetInse
 }
 
 // ============================================================
-// 5. POST Handler
+// 4. POST Handler
 // ============================================================
 
 export async function POST(req: NextRequest) {
@@ -198,11 +172,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = validation.data;
-    const supabase = getSupabaseAdmin();
 
     let slug: string;
     try {
-      slug = await generateUniqueSlug(supabase);
+      slug = await generateUniqueSlug();
     } catch (error) {
       logger.error('[create-snippet] Slug generation failed:', error);
       return NextResponse.json({ error: 'Failed to generate unique identifier' }, { status: 500 });
@@ -210,12 +183,10 @@ export async function POST(req: NextRequest) {
 
     const row = mapToDatabaseRow(body, slug);
 
-    // 🔥 Temporary type assertion to bypass TypeScript inference issues.
-    // The runtime payload is correct and matches the database schema.
-    // TODO: Remove this once Supabase types are properly generated and recognized.
+    // 🔥 استفاده از `supabase` وارداتی (که fallback دارد) و `as any` برای عبور از Build
     const { data, error } = await supabase
       .from('snippets')
-      .insert(row as any) // <-- temporary workaround
+      .insert(row as any)
       .select('id, slug, card_title, username, github_username, avatar_url')
       .single();
 
