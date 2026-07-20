@@ -433,27 +433,34 @@ export default function Home() {
   }, [mode, username, githubUsername, avatarUrl]);
 
   const handleGenerate = useCallback(async () => {
+    // 🔥 STEP 1: Set loading state IMMEDIATELY
+    dispatch({ type: 'SET_LOADING', payload: true });
+
+    // STEP 2: Process code (remove comments and empty lines)
     const processedCode = processCode(code, language);
     if (processedCode !== code) {
       dispatch({ type: 'SET_CODE', payload: processedCode });
     }
 
+    // STEP 3: Validate
     const validationError = validateCode(processedCode);
     if (validationError) {
       dispatch({ type: 'SET_ERROR', payload: validationError });
+      dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
 
     dispatch({ type: 'SET_ERROR', payload: null });
-    dispatch({ type: 'SET_LOADING', payload: true });
 
     try {
+      // STEP 4: Call API
       const genData = await callGenerateAPI(processedCode, language, mode);
       const saveDataPayload = prepareSaveData(processedCode, language, genData);
       const saveResult = await saveSnippet(saveDataPayload);
       const newSnippet = buildSnippetFromPayload(saveResult, processedCode, language, saveDataPayload);
       const fullAnalysisData = mode === 'advanced' ? genData : { analysis: genData.analysis, linkedin_post: genData.linkedin_post };
 
+      // STEP 5: Update outputs
       dispatch({
         type: 'SET_OUTPUTS',
         payload: {
@@ -477,6 +484,7 @@ export default function Home() {
       if (process.env.NODE_ENV === 'development') console.error('Error:', error);
       dispatch({ type: 'SET_ERROR', payload: message });
     } finally {
+      // STEP 6: Turn off loading state
       dispatch({ type: 'SET_LOADING', payload: false });
       abortControllerRef.current = null;
     }
