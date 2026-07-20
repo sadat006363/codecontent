@@ -14,7 +14,7 @@ import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
 import { cpp } from '@codemirror/lang-cpp';
 import { php } from '@codemirror/lang-php';
-import { EditorView, type Extension } from '@codemirror/view';
+import type { Extension } from '@codemirror/state';
 
 // ============================================================
 // Types
