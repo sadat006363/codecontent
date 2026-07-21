@@ -699,7 +699,7 @@ export default function Home() {
   }, [code, language, showToast]);
 
   return (
-    <main className="min-h-screen bg-[#1a1a2e] p-4 md:p-6 flex flex-col">
+    <main className="min-h-screen bg-[#f8f9fa] p-4 md:p-6 flex flex-col">
       <div className="flex-1 max-w-7xl mx-auto w-full">
         {toastMessage && (
           <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-[#1a1a2e] text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm transition-all duration-300">
