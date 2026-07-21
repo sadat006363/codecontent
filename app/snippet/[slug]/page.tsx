@@ -231,60 +231,79 @@ export default async function SnippetPage({ params }: PageProps) {
   const highlightedHtml = await highlightCode(snippet.raw_code, snippet.language);
   const fullAnalysisExists = hasFullAnalysis(snippet);
 
+  // داده‌های دیباگ برای نمایش در صفحه
+  const debugData = {
+    fullAnalysisExists,
+    findings: snippet.findings,
+    scorecard_new: snippet.scorecard_new,
+    verdict: snippet.verdict,
+    execution_overview: snippet.execution_overview,
+  };
+
   return (
-    <main className="min-h-screen bg-[#f8f9fa]">
-      <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-        <SnippetHeader shareUrl={shareUrl} />
-        <SnippetUserInfo
-          username={snippet.username || 'Anonymous'}
-          githubUsername={snippet.github_username || undefined}
-        />
-        <SnippetShareButtons slug={snippet.slug} title={snippet.card_title} />
-        <SnippetTabLinks shareUrl={shareUrl} />
-        <SnippetCode
-          code={snippet.raw_code}
-          language={snippet.language}
-          highlightedHtml={highlightedHtml}
-        />
-        <SnippetAnalysis
-          keyConcept={snippet.key_concept}
-          whatItDoes={snippet.what_this_code_does}
-        />
-        <SnippetDebug
-          debugAnalysis={snippet.debug_analysis}
-          optimization={snippet.optimization}
-        />
+    <>
+      {/* 🔥 باکس دیباگ - فقط در محیط Development نمایش داده می‌شود */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-20 left-4 z-50 bg-black/90 text-white p-4 rounded-lg max-w-md max-h-96 overflow-auto text-xs font-mono border border-gray-600 shadow-2xl">
+          <div className="font-bold text-yellow-400 mb-2">🔍 DEBUG</div>
+          <pre>{JSON.stringify(debugData, null, 2)}</pre>
+        </div>
+      )}
 
-        {fullAnalysisExists ? (
-          <SnippetFullAnalysis snippet={snippet} />
-        ) : (
-          <div className="mt-8 pt-6 border-t border-[#313244]">
-            <div className="bg-[#11111b] p-6 rounded-lg border border-[#313244] text-center">
-              <p className="text-[#a6adc8] text-sm">
-                📊 Full report has not been generated for this snippet yet.
-              </p>
-              <p className="text-[#6c7086] text-xs mt-2">
-                Generate a full analysis to see detailed insights including code walkthrough,
-                performance analysis, security review, and more.
-              </p>
+      <main className="min-h-screen bg-[#f8f9fa]">
+        <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
+          <SnippetHeader shareUrl={shareUrl} />
+          <SnippetUserInfo
+            username={snippet.username || 'Anonymous'}
+            githubUsername={snippet.github_username || undefined}
+          />
+          <SnippetShareButtons slug={snippet.slug} title={snippet.card_title} />
+          <SnippetTabLinks shareUrl={shareUrl} />
+          <SnippetCode
+            code={snippet.raw_code}
+            language={snippet.language}
+            highlightedHtml={highlightedHtml}
+          />
+          <SnippetAnalysis
+            keyConcept={snippet.key_concept}
+            whatItDoes={snippet.what_this_code_does}
+          />
+          <SnippetDebug
+            debugAnalysis={snippet.debug_analysis}
+            optimization={snippet.optimization}
+          />
+
+          {fullAnalysisExists ? (
+            <SnippetFullAnalysis snippet={snippet} />
+          ) : (
+            <div className="mt-8 pt-6 border-t border-[#313244]">
+              <div className="bg-[#11111b] p-6 rounded-lg border border-[#313244] text-center">
+                <p className="text-[#a6adc8] text-sm">
+                  📊 Full report has not been generated for this snippet yet.
+                </p>
+                <p className="text-[#6c7086] text-xs mt-2">
+                  Generate a full analysis to see detailed insights including code walkthrough,
+                  performance analysis, security review, and more.
+                </p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {snippet.line_explanations && snippet.line_explanations.length > 0 && (
-          <SnippetLineByLine lineExplanations={snippet.line_explanations} />
-        )}
+          {snippet.line_explanations && snippet.line_explanations.length > 0 && (
+            <SnippetLineByLine lineExplanations={snippet.line_explanations} />
+          )}
 
-        {snippet.generated_prompt && (
-          <SnippetPrompt generatedPrompt={snippet.generated_prompt} />
-        )}
+          {snippet.generated_prompt && (
+            <SnippetPrompt generatedPrompt={snippet.generated_prompt} />
+          )}
 
-        {snippet.linkedin_post && (
-          <SnippetLinkedIn linkedinPost={snippet.linkedin_post} />
-        )}
+          {snippet.linkedin_post && (
+            <SnippetLinkedIn linkedinPost={snippet.linkedin_post} />
+          )}
 
-        <SnippetFooter appUrl={baseUrl || 'https://zbloue.vercel.app'} />
-      </div>
-    </main>
+          <SnippetFooter appUrl={baseUrl || 'https://zbloue.vercel.app'} />
+        </div>
+      </main>
+    </>
   );
 }
