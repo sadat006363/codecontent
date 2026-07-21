@@ -417,7 +417,7 @@ export default function SnippetFullAnalysis({ snippet }: SnippetFullAnalysisProp
   const langExtension = languageExtensions[language] || javascript();
 
   return (
-    <div className="mt-8 pt-6 border-t border-[#313244] border-4 border-red-500">
+    <div className="mt-8 pt-6 border-t border-[#313244] ">
       <h2 className="text-2xl font-bold text-white mb-4">📊 Full Analysis</h2>
 
       <div className="space-y-4 text-[#cdd6f4]">
