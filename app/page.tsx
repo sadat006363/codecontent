@@ -7,7 +7,7 @@ import Editor from '@/components/Editor';
 import OutputPanel from '@/components/OutputPanel';
 import { HomeHeader, ErrorDisplay, HomeFooter } from '@/components/home';
 import { AppProvider, useAppContext } from '@/context';
-import { snippetService, analysisService,  SaveSnippetData } from '@/services';
+import { snippetService, analysisService, type SaveSnippetData } from '@/services';
 import { detectLanguage } from '@/lib/languageDetector';
 import { isCodeLike, removeComments } from '@/lib/utils';
 import {
@@ -222,17 +222,42 @@ function HomeContent() {
     const linkedin_post = genData.linkedin_post || 'Check out this code analysis! #Zbloue';
 
     if (mode === 'advanced') {
+      // ===== فیلدهای جدید از پایپلاین =====
       const card_title = genData.title ?? genData.card_title ?? 'Code Analysis';
-      const key_concept = genData.highLevelSummary ?? genData.key_concept ?? 'No summary provided.';
-      const what_this_code_does = genData.codeWalkthrough && genData.codeWalkthrough.length > 0
-        ? genData.codeWalkthrough.map((item) => item.explanation).join(' ')
-        : 'No walkthrough provided.';
-      const debug_analysis = genData.bugsAndRiskyCases && genData.bugsAndRiskyCases.length > 0
-        ? genData.bugsAndRiskyCases.map((item) => item.issue).join('; ')
-        : 'No bugs identified.';
-      const optimization = genData.recommendedImprovements && genData.recommendedImprovements.length > 0
-        ? genData.recommendedImprovements.map((item) => item.improvement).join('; ')
-        : 'No improvements suggested.';
+
+      // 🔥 Key Concept = summary
+      const key_concept = genData.highLevelSummary ?? genData.summary ?? 'No summary provided.';
+
+      // 🔥 What This Code Does = از summary یا codeWalkthrough
+      let what_this_code_does = '';
+      if (genData.codeWalkthrough && genData.codeWalkthrough.length > 0) {
+        what_this_code_does = genData.codeWalkthrough.map((item) => item.explanation).join(' ');
+      } else if (genData.summary) {
+        what_this_code_does = genData.summary;
+      } else {
+        what_this_code_does = 'No description available.';
+      }
+
+      // 🔥 Debug Analysis = از findings
+      let debug_analysis = '';
+      if (genData.findings && genData.findings.length > 0) {
+        debug_analysis = genData.findings
+          .map((f) => `[${f.severity}] ${f.title}: ${f.consequence}`)
+          .join('; ');
+      } else {
+        debug_analysis = 'No bugs identified.';
+      }
+
+      // 🔥 Optimization = از recommendedActions
+      let optimization = '';
+      if (genData.recommendedActions && genData.recommendedActions.length > 0) {
+        optimization = genData.recommendedActions
+          .sort((a, b) => a.priority - b.priority)
+          .map((a) => `${a.title}: ${a.action}`)
+          .join('; ');
+      } else {
+        optimization = 'No improvements suggested.';
+      }
 
       return {
         code: processedCode,
@@ -246,6 +271,8 @@ function HomeContent() {
         username: username || 'Developer',
         github_username: githubUsername || null,
         avatar_url: avatarUrl,
+
+        // ===== Legacy fields =====
         code_walkthrough: genData.codeWalkthrough || null,
         what_works_well: genData.whatWorksWell || null,
         bugs_and_risky_cases: genData.bugsAndRiskyCases || null,
@@ -260,6 +287,8 @@ function HomeContent() {
         final_verdict_summary: genData.finalVerdict?.summary || null,
         final_verdict_approved: genData.finalVerdict?.approved || null,
         final_verdict_next_steps: genData.finalVerdict?.nextSteps || null,
+
+        // ===== New pipeline fields =====
         findings: genData.findings || null,
         execution_overview: genData.executionOverview || null,
         architectural_observations: genData.architecturalObservations || null,
@@ -271,6 +300,7 @@ function HomeContent() {
         limitations: genData.limitations || null,
       };
     } else {
+      // ===== حالت simple/medium =====
       const analysisText = genData.analysis || 'No analysis generated.';
       const summaryLines = analysisText.split('\n').slice(0, 4).join('\n');
       const card_title = mode === 'simple' ? 'Quick Analysis' : 'Standard Analysis';
