@@ -37,7 +37,6 @@ function extractJSON(text: string): string {
     JSON.parse(candidate);
     return candidate;
   } catch {
-    // fallback: try to clean control chars and re-parse
     const cleaned = candidate.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
     try {
       JSON.parse(cleaned);
@@ -65,13 +64,13 @@ function finalizeAuditCandidate(
 
   // Ensure candidate is a plain object
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-    const issue: z.ZodIssue = {
-      code: 'invalid_type',
+    const issue = {
+      code: 'invalid_type' as const,
       expected: 'object',
       received: typeof candidate,
       path: [],
       message: 'Candidate must be a non-null object',
-    };
+    } as z.ZodIssue;
     return {
       success: false,
       issues: [issue],
