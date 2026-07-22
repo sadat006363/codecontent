@@ -18,6 +18,8 @@ import SnippetLineByLine from '@/components/snippet/SnippetLineByLine';
 import SnippetPrompt from '@/components/snippet/SnippetPrompt';
 import SnippetStatusBar from '@/components/snippet/SnippetStatusBar';
 import SnippetJsonCopyButton from '@/components/snippet/SnippetJsonCopyButton'; // ✅ جدید
+import SnippetJsonDropdown from '@/components/snippet/SnippetJsonDropdown';
+
 import DebugLogger from '@/components/DebugLogger';
 
 // ============================================================
