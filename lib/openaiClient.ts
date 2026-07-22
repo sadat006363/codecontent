@@ -1,24 +1,23 @@
-// ============================================================
-// 📁 فایل: lib/openaiClient.ts (جدید)
-// ============================================================
+// lib/openaiClient.ts
+
 import OpenAI from 'openai';
 
 export const MODEL_CONFIG = {
   simple: {
     model: process.env.OPENAI_MODEL_SIMPLE || 'gpt-4o-mini',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_SIMPLE || '4000', 10),
+    maxCompletionTokens: parseInt(process.env.OPENAI_MAX_TOKENS_SIMPLE || '4000', 10),
     timeout: parseInt(process.env.OPENAI_TIMEOUT_SIMPLE || '30000', 10),
     temperature: 0.3,
   },
   medium: {
     model: process.env.OPENAI_MODEL_MEDIUM || 'gpt-4o-mini',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_MEDIUM || '6000', 10),
+    maxCompletionTokens: parseInt(process.env.OPENAI_MAX_TOKENS_MEDIUM || '6000', 10),
     timeout: parseInt(process.env.OPENAI_TIMEOUT_MEDIUM || '45000', 10),
     temperature: 0.3,
   },
   advanced: {
     model: process.env.OPENAI_MODEL_ADVANCED || 'gpt-4o',
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_ADVANCED || '16000', 10),
+    maxCompletionTokens: parseInt(process.env.OPENAI_MAX_TOKENS_ADVANCED || '16000', 10),
     timeout: parseInt(process.env.OPENAI_TIMEOUT_ADVANCED || '90000', 10),
     temperature: 0.2,
   },
@@ -32,7 +31,7 @@ const openai = new OpenAI({ apiKey: openaiApiKey });
 export interface OpenAICallOptions {
   mode?: ModelMode;
   model?: string;
-  maxTokens?: number;
+  maxCompletionTokens?: number; // 🔥 تغییر نام از maxTokens به maxCompletionTokens
   timeout?: number;
   temperature?: number;
   responseFormat?: 'json_object' | 'text';
@@ -48,7 +47,7 @@ export async function callOpenAI(
   const config = MODEL_CONFIG[mode];
 
   const model = options.model || config.model;
-  const maxTokens = options.maxTokens || config.maxTokens;
+  const maxCompletionTokens = options.maxCompletionTokens || config.maxCompletionTokens;
   const timeout = options.timeout || config.timeout;
   const temperature = options.temperature ?? config.temperature;
   const responseFormat = options.responseFormat || 'json_object';
@@ -67,7 +66,8 @@ export async function callOpenAI(
         response_format:
           responseFormat === 'json_object' ? { type: 'json_object' } : undefined,
         temperature,
-        max_tokens: maxTokens,
+        // 🔥 استفاده از max_completion_tokens به جای max_tokens
+        max_completion_tokens: maxCompletionTokens,
       },
       { signal: options.signal || controller.signal }
     );
