@@ -225,7 +225,6 @@ export async function runAdvancedPipeline(
         const fileName = `prompt-${auditType}-${timestamp}.md`;
         const filePath = path.join(debugDir, fileName);
 
-        // System Prompt (defined below)
         const systemPrompt = 'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
         const content = [
@@ -278,6 +277,34 @@ export async function runAdvancedPipeline(
       };
     }
     stages.push({ name: 'ai_call', durationMs: Date.now() - stageStart4 });
+
+    // ============================================================
+    // 📁 SAVE RAW OPENAI RESPONSE TO FILE (Development only)
+    // ============================================================
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const debugDir = path.join(process.cwd(), 'debug');
+        if (!fs.existsSync(debugDir)) {
+          fs.mkdirSync(debugDir, { recursive: true });
+        }
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `response-${auditType}-${timestamp}.json`;
+        const filePath = path.join(debugDir, fileName);
+
+        const content = JSON.stringify({
+          timestamp: new Date().toISOString(),
+          auditType,
+          language,
+          rawResponse: rawContent,
+        }, null, 2);
+
+        fs.writeFileSync(filePath, content, 'utf8');
+        console.log(`📄 Raw OpenAI response saved to: ${filePath}`);
+      } catch (err) {
+        console.warn('⚠️ Failed to save raw response:', err);
+      }
+    }
 
     // ===== 5. Extract JSON =====
     const stageStart5 = Date.now();
