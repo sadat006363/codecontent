@@ -34,6 +34,22 @@ export type FindingCategory =
   | 'other';
 
 // ============================================================
+// 🔥 تایپ DebugTrace (برای ذخیره‌سازی زنجیره تحلیل)
+// ============================================================
+
+export interface DebugTraceStage {
+  name: string;
+  description: string;
+  data?: unknown;
+  durationMs?: number;
+}
+
+export interface DebugTrace {
+  timestamp: string;
+  stages: DebugTraceStage[];
+}
+
+// ============================================================
 // 🔥 تایپ‌های ساختار یافته برای Advanced Audit
 // ============================================================
 
@@ -205,6 +221,7 @@ export interface SnippetLegacy {
   scorecard_new?: AuditScorecard | null;
   verdict?: AdvancedAuditResult['verdict'] | null;
   limitations?: string[] | null;
+  debug_trace?: DebugTrace | null;
 }
 
 // ============================================================
@@ -448,6 +465,9 @@ export const SnippetDataSchema = z.object({
   scorecard_new: ScorecardNewSchema.optional(),
   verdict: VerdictNewSchema.optional(),
   limitations: z.array(z.string()).optional(),
+
+  // ===== Debug Trace (برای عیب‌یابی) =====
+  debug_trace: z.any().nullable().optional(),
 });
 
 // ============================================================
@@ -574,10 +594,6 @@ export interface FinalVerdict {
   approved: boolean;
   nextSteps: string;
 }
-
-// ============================================================
-// 🔥 تایپ LineExplanation (برای توضیحات خط به خط)
-// ============================================================
 
 export interface LineExplanation {
   lineNumber: number;

@@ -62,7 +62,6 @@ function finalizeAuditCandidate(
   | { success: true; data: AdvancedAuditResult }
   | { success: false; issues: z.ZodIssue[] } {
 
-  // Ensure candidate is a plain object
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
     const issue = {
       code: 'invalid_type' as const,
@@ -77,14 +76,12 @@ function finalizeAuditCandidate(
     };
   }
 
-  // Spread candidate and apply trusted metadata
   const payload: any = { ...candidate };
   payload.schemaVersion = '1.0';
   payload.auditType = metadata.auditType;
   payload.status = metadata.status;
   payload.language = metadata.language;
 
-  // Validate with Zod
   const result = AdvancedAuditResultSchema.safeParse(payload);
   if (result.success) {
     return { success: true, data: result.data };
@@ -94,7 +91,7 @@ function finalizeAuditCandidate(
 }
 
 // ============================================================
-// HELPER: REPAIR WRAPPER (HONORS maxRepairAttempts)
+// HELPER: REPAIR WRAPPER
 // ============================================================
 
 async function attemptRepairWithBudget(
@@ -124,7 +121,6 @@ async function attemptRepairWithBudget(
 
     if (!repaired) return null;
 
-    // Re-validate the repaired result through the same gate
     const finalizeResult = finalizeAuditCandidate(repaired, {
       status: 'repaired',
       auditType,
@@ -151,6 +147,20 @@ export interface PipelineResult {
   result: AdvancedAuditResult | null;
   status: AuditStatus;
   error?: string;
+  trace?: {
+    requestPayload?: unknown;
+    rawAIResponse?: string;
+    extractedJSON?: string;
+    validatedData?: unknown;
+    repairedData?: unknown;
+    normalizedData?: unknown;
+    finalData?: unknown;
+    stages: {
+      name: string;
+      durationMs: number;
+      data?: unknown;
+    }[];
+  };
 }
 
 export async function runAdvancedPipeline(
@@ -158,25 +168,33 @@ export async function runAdvancedPipeline(
   language: string
 ): Promise<PipelineResult> {
   const startTime = Date.now();
+  const stages: { name: string; durationMs: number; data?: unknown }[] = [];
 
   try {
     // ===== 1. Input validation =====
+    const stageStart = Date.now();
     const lineCount = getLineCount(code);
     if (lineCount > ANALYSIS_CONFIG.maxLinesForAnalysis) {
       logger.warn(`[Pipeline] Code exceeds max lines: ${lineCount} > ${ANALYSIS_CONFIG.maxLinesForAnalysis}`);
+      stages.push({ name: 'input_validation', durationMs: Date.now() - stageStart, data: { lineCount, maxAllowed: ANALYSIS_CONFIG.maxLinesForAnalysis } });
       return {
         result: null,
         status: 'failed_validation',
         error: `Code exceeds maximum ${ANALYSIS_CONFIG.maxLinesForAnalysis} lines (${lineCount} lines).`,
+        trace: { stages },
       };
     }
+    stages.push({ name: 'input_validation', durationMs: Date.now() - stageStart });
 
     const numberedCode = addLineNumbers(code);
 
     // ===== 2. Concurrency detection =====
+    const stageStart2 = Date.now();
     const detectorResult: DetectorResult = detectConcurrencySignals(code, language);
+    stages.push({ name: 'detect_concurrency', durationMs: Date.now() - stageStart2, data: detectorResult });
 
     // ===== 3. Select audit strategy =====
+    const stageStart3 = Date.now();
     let auditType: AuditType;
     let prompt: string;
 
@@ -189,10 +207,11 @@ export async function runAdvancedPipeline(
       auditType = 'generic';
       logger.info('[Pipeline] Generic audit selected');
     }
+    stages.push({ name: 'select_strategy', durationMs: Date.now() - stageStart3, data: { auditType } });
 
     // ===== 4. First AI call =====
-    const systemPrompt =
-      'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
+    const stageStart4 = Date.now();
+    const systemPrompt = 'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
     let rawContent: string;
     try {
@@ -202,22 +221,22 @@ export async function runAdvancedPipeline(
       });
     } catch (aiError) {
       logger.error('[Pipeline] AI call failed:', aiError);
+      stages.push({ name: 'ai_call_failed', durationMs: Date.now() - stageStart4, data: { error: aiError instanceof Error ? aiError.message : 'unknown' } });
       return {
         result: null,
         status: 'failed_validation',
         error: aiError instanceof Error ? aiError.message : 'AI call failed',
+        trace: { stages },
       };
     }
-
-    if (process.env.NODE_ENV === 'development') {
-      logger.debug('[Pipeline] Raw AI response length:', rawContent.length);
-    }
+    stages.push({ name: 'ai_call', durationMs: Date.now() - stageStart4 });
 
     // ===== 5. Extract JSON =====
+    const stageStart5 = Date.now();
     const jsonString = extractJSON(rawContent);
     if (!jsonString) {
       logger.warn('[Pipeline] Failed to extract valid JSON from AI response');
-      // Try repair only if budget allows
+      stages.push({ name: 'extract_json_failed', durationMs: Date.now() - stageStart5 });
       if (MAX_REPAIR_ATTEMPTS > 0) {
         const repairResult = await attemptRepairWithBudget(
           numberedCode,
@@ -242,9 +261,11 @@ export async function runAdvancedPipeline(
           MAX_REPAIR_ATTEMPTS
         );
         if (repairResult) {
+          stages.push({ name: 'repair_success', durationMs: Date.now() - stageStart5 });
           return {
             result: repairResult,
             status: 'repaired',
+            trace: { stages, rawAIResponse: rawContent },
           };
         }
       }
@@ -252,15 +273,19 @@ export async function runAdvancedPipeline(
         result: null,
         status: 'failed_validation',
         error: 'Failed to extract valid JSON from AI response',
+        trace: { stages, rawAIResponse: rawContent },
       };
     }
+    stages.push({ name: 'extract_json', durationMs: Date.now() - stageStart5, data: { jsonLength: jsonString.length } });
 
     // ===== 6. Parse JSON =====
+    const stageStart6 = Date.now();
     let parsed: unknown;
     try {
       parsed = JSON.parse(jsonString);
     } catch (parseError) {
       logger.warn('[Pipeline] JSON parse error:', parseError);
+      stages.push({ name: 'parse_json_failed', durationMs: Date.now() - stageStart6, data: { error: parseError instanceof Error ? parseError.message : 'unknown' } });
       if (MAX_REPAIR_ATTEMPTS > 0) {
         const repairResult = await attemptRepairWithBudget(
           numberedCode,
@@ -285,9 +310,11 @@ export async function runAdvancedPipeline(
           MAX_REPAIR_ATTEMPTS
         );
         if (repairResult) {
+          stages.push({ name: 'repair_success_after_parse_fail', durationMs: Date.now() - stageStart6 });
           return {
             result: repairResult,
             status: 'repaired',
+            trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
           };
         }
       }
@@ -295,13 +322,17 @@ export async function runAdvancedPipeline(
         result: null,
         status: 'failed_validation',
         error: `JSON parse failed: ${parseError instanceof Error ? parseError.message : 'unknown'}`,
+        trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
       };
     }
+    stages.push({ name: 'parse_json', durationMs: Date.now() - stageStart6, data: { parsed: true } });
 
     // ===== 7. Initial validation =====
+    const stageStart7 = Date.now();
     let initialValidation = validateSemanticCompleteness(parsed, detectorResult, code);
+    stages.push({ name: 'initial_validation', durationMs: Date.now() - stageStart7, data: { structurallyValid: initialValidation.structurallyValid, semanticallyComplete: initialValidation.semanticallyComplete, issuesCount: initialValidation.issues.length } });
 
-    // ===== 8. Repair loop (structured) =====
+    // ===== 8. Repair loop =====
     let lastCandidate = parsed;
     let lastValidation = initialValidation;
     let repairAttempts = 0;
@@ -310,6 +341,7 @@ export async function runAdvancedPipeline(
     let finalValidation = initialValidation;
 
     while (lastValidation.repairRequired && repairAttempts < MAX_REPAIR_ATTEMPTS) {
+      const stageStartRepair = Date.now();
       logger.info(`[Pipeline] Repair attempt ${repairAttempts + 1} triggered`);
       const repaired = await attemptRepairWithBudget(
         numberedCode,
@@ -322,27 +354,26 @@ export async function runAdvancedPipeline(
       );
 
       if (repaired) {
-        // Repaired candidate passed the Zod gate -> structurally valid
-        // Now re-run semantic validation
         const revalidation = validateSemanticCompleteness(repaired, detectorResult, code);
         if (revalidation.structurallyValid && !revalidation.repairRequired) {
           finalCandidate = repaired;
           finalValidation = revalidation;
           wasRepaired = true;
+          stages.push({ name: 'repair_success', durationMs: Date.now() - stageStartRepair, data: { attempt: repairAttempts + 1 } });
           break;
         } else if (revalidation.structurallyValid && revalidation.repairRequired) {
-          // Partial: structurally valid but still semantically incomplete
           finalCandidate = repaired;
           finalValidation = revalidation;
           wasRepaired = true;
-          // continue loop if budget remains
+          stages.push({ name: 'repair_partial', durationMs: Date.now() - stageStartRepair, data: { attempt: repairAttempts + 1, issuesCount: revalidation.issues.length } });
         } else {
-          // Repaired but structurally invalid (shouldn't happen because Zod gate passed)
           logger.warn('[Pipeline] Repair produced structurally invalid data despite Zod pass');
+          stages.push({ name: 'repair_invalid', durationMs: Date.now() - stageStartRepair, data: { attempt: repairAttempts + 1 } });
           break;
         }
       } else {
         logger.warn('[Pipeline] Repair attempt failed');
+        stages.push({ name: 'repair_failed', durationMs: Date.now() - stageStartRepair, data: { attempt: repairAttempts + 1 } });
         break;
       }
       repairAttempts++;
@@ -350,8 +381,6 @@ export async function runAdvancedPipeline(
 
     // ===== 9. Determine final outcome =====
     if (finalValidation.structurallyValid) {
-      // finalCandidate already passed Zod gate via attemptRepairWithBudget or initial validation
-      // We need to re-run the finalization to get a fully validated object
       const status: AuditStatus = wasRepaired ? 'repaired' : 'complete';
       const finalizeResult = finalizeAuditCandidate(finalCandidate, {
         status,
@@ -362,9 +391,16 @@ export async function runAdvancedPipeline(
       if (finalizeResult.success) {
         const duration = Date.now() - startTime;
         logger.info(`[Pipeline] Completed in ${duration}ms, status: ${status}`);
+        const trace = {
+          stages,
+          rawAIResponse: rawContent,
+          extractedJSON: jsonString,
+          finalData: finalizeResult.data,
+        };
         return {
           result: finalizeResult.data,
           status,
+          trace,
         };
       } else {
         logger.error('[Pipeline] Finalization failed despite structural validity:', finalizeResult.issues);
@@ -372,16 +408,17 @@ export async function runAdvancedPipeline(
           result: null,
           status: 'failed_validation',
           error: 'Internal error: final validation failed unexpectedly',
+          trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
         };
       }
     }
 
-    // ===== 10. All attempts exhausted or validation failed =====
     logger.error('[Pipeline] Failed to obtain valid audit result');
     return {
       result: null,
       status: 'failed_validation',
       error: 'Validation failed after all repair attempts',
+      trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
     };
   } catch (error) {
     logger.error('[Pipeline] Unhandled error:', error);
@@ -389,6 +426,7 @@ export async function runAdvancedPipeline(
       result: null,
       status: 'failed_validation',
       error: error instanceof Error ? error.message : 'Unknown pipeline error',
+      trace: { stages },
     };
   }
 }

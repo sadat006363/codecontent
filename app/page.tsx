@@ -33,6 +33,7 @@ import {
   RecommendedImprovement,
   SuggestedTest,
   ScorecardLegacy,
+  DebugTrace,
 } from '@/types';
 import logger from '@/lib/logger';
 
@@ -69,13 +70,11 @@ function HomeContent() {
   useEffect(() => {
     if (promptInfo) {
       const { auditType, status, isPipeline } = promptInfo;
-      
-      // تشخیص فایل پرامپت
+
       let filePath = '';
       let promptName = '';
-      
+
       if (isPipeline) {
-        // پایپلاین جدید (concurrency یا generic)
         if (auditType === 'concurrency') {
           filePath = 'lib/analysis/prompts/concurrency.ts';
           promptName = 'CONCURRENCY (Pipeline)';
@@ -87,7 +86,6 @@ function HomeContent() {
           promptName = `${auditType?.toUpperCase() || 'UNKNOWN'} (Pipeline)`;
         }
       } else {
-        // Legacy / Fallback
         if (auditType === 'simple') {
           filePath = 'lib/ai.ts (SIMPLE_PROMPT)';
           promptName = 'SIMPLE (Legacy)';
@@ -103,7 +101,6 @@ function HomeContent() {
         }
       }
 
-      // نمایش لاگ در کنسول با رنگ و فرمت مشخص
       console.log(
         `%c🔍 [Zbloue] Prompt Execution Report`,
         'font-size:14px; font-weight:bold; color:#4a86f7;'
@@ -112,13 +109,11 @@ function HomeContent() {
       console.log(`   📝 Type: ${promptName}`);
       console.log(`   📊 Status: ${status?.toUpperCase() || 'UNKNOWN'}`);
       console.log(`   🏷️  Mode: ${mode.toUpperCase()}`);
-      
-      // نمایش جزئیات بیشتر در محیط توسعه
+
       if (process.env.NODE_ENV === 'development') {
         console.log('   📋 Full promptInfo:', promptInfo);
       }
-      
-      // خط جداکننده
+
       console.log(
         `%c${'─'.repeat(60)}`,
         'color:#6c7086;'
@@ -244,7 +239,6 @@ function HomeContent() {
       avatar_url: saveResult.avatar_url || null,
       card_image_url: null,
 
-      // ===== Legacy fields (optional, cannot be null) =====
       code_walkthrough: (payload.code_walkthrough as CodeWalkthroughItem[]) || undefined,
       what_works_well: (payload.what_works_well as string[]) || undefined,
       bugs_and_risky_cases: (payload.bugs_and_risky_cases as BugAndRiskyCase[]) || undefined,
@@ -260,11 +254,9 @@ function HomeContent() {
       final_verdict_approved: (payload.final_verdict_approved as boolean) || undefined,
       final_verdict_next_steps: (payload.final_verdict_next_steps as string) || undefined,
 
-      // ===== Fields that can be null (nullable) =====
       line_explanations: null,
       generated_prompt: null,
 
-      // ===== New advanced fields (optional, cannot be null) =====
       findings: (payload.findings as AuditFinding[]) || undefined,
       execution_overview: (payload.execution_overview as AdvancedAuditResult['executionOverview']) || undefined,
       architectural_observations: (payload.architectural_observations as AdvancedAuditResult['architecturalObservations']) || undefined,
@@ -274,6 +266,7 @@ function HomeContent() {
       scorecard_new: (payload.scorecard_new as AuditScorecard) || undefined,
       verdict: (payload.verdict as AdvancedAuditResult['verdict']) || undefined,
       limitations: (payload.limitations as string[]) || undefined,
+      debug_trace: (payload.debug_trace as DebugTrace) || undefined,
     };
   }, [username, githubUsername]);
 
@@ -284,10 +277,16 @@ function HomeContent() {
   ): SaveSnippetData => {
     const linkedin_post = genData.linkedin_post || 'Check out this code analysis! #Zbloue';
 
+    // ایجاد DebugTrace
+    const debugTrace: DebugTrace | undefined = (genData as any).debug_trace ? {
+      timestamp: new Date().toISOString(),
+      stages: (genData as any).debug_trace.stages || [],
+    } : undefined;
+
     if (mode === 'advanced') {
       const card_title = genData.title ?? genData.card_title ?? 'Code Analysis';
       const key_concept = genData.highLevelSummary ?? genData.summary ?? 'No summary provided.';
-      
+
       let what_this_code_does = '';
       if (genData.codeWalkthrough && genData.codeWalkthrough.length > 0) {
         what_this_code_does = genData.codeWalkthrough.map((item) => item.explanation).join(' ');
@@ -316,7 +315,7 @@ function HomeContent() {
         optimization = 'No improvements suggested.';
       }
 
-      return {
+      const baseData = {
         code: processedCode,
         language: lang,
         card_title,
@@ -329,7 +328,6 @@ function HomeContent() {
         github_username: githubUsername || null,
         avatar_url: avatarUrl,
 
-        // ===== Legacy fields =====
         code_walkthrough: genData.codeWalkthrough || null,
         what_works_well: genData.whatWorksWell || null,
         bugs_and_risky_cases: genData.bugsAndRiskyCases || null,
@@ -345,7 +343,6 @@ function HomeContent() {
         final_verdict_approved: genData.finalVerdict?.approved || null,
         final_verdict_next_steps: genData.finalVerdict?.nextSteps || null,
 
-        // ===== New pipeline fields =====
         findings: genData.findings || null,
         execution_overview: genData.executionOverview || null,
         architectural_observations: genData.architecturalObservations || null,
@@ -356,6 +353,13 @@ function HomeContent() {
         verdict: genData.verdict || null,
         limitations: genData.limitations || null,
       };
+
+      // افزودن debug_trace در صورت وجود
+      if (debugTrace) {
+        return { ...baseData, debug_trace: debugTrace };
+      }
+      return baseData;
+
     } else {
       const analysisText = genData.analysis || 'No analysis generated.';
       const summaryLines = analysisText.split('\n').slice(0, 4).join('\n');
@@ -373,6 +377,7 @@ function HomeContent() {
         username: username || 'Developer',
         github_username: githubUsername || null,
         avatar_url: avatarUrl,
+        debug_trace: debugTrace || null,
       };
     }
   }, [mode, username, githubUsername, avatarUrl]);

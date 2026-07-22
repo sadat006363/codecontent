@@ -104,14 +104,13 @@ function getSafeErrorMessage(error: unknown): string {
 }
 
 // ============================================================
-// 4. Main handler (wrapped with error handler)
+// 4. Main handler
 // ============================================================
 
 export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
   const startTime = Date.now();
   const ip = getClientIP(req);
 
-  // ===== Rate Limiter =====
   const rateLimitResult = await rateLimiter(ip);
   if (!rateLimitResult.allowed) {
     logger.warn(`[generate] Rate limit exceeded for IP ${ip}`);
@@ -121,7 +120,6 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
     );
   }
 
-  // ===== Parse JSON =====
   let rawBody: unknown;
   try {
     rawBody = await req.json();
@@ -133,7 +131,6 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
     );
   }
 
-  // ===== Validation =====
   const validation = GenerateRequestSchema.safeParse(rawBody);
   if (!validation.success) {
     const firstError = validation.error.issues[0];
@@ -173,7 +170,6 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
     );
   }
 
-  // ===== Mock mode =====
   if (process.env.USE_MOCK_RESPONSE === 'true' && mode === 'advanced') {
     logger.info(`[generate] Using mock response for advanced mode (IP ${ip})`);
     try {
@@ -184,8 +180,8 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
     }
   }
 
-  // ===== AI generation =====
   let result: GenerateResponseValidated;
+  let pipelineTrace: unknown = null;
 
   if (mode === 'advanced') {
     logger.info(`[generate] Running advanced pipeline for IP ${ip}`);
@@ -200,6 +196,8 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
             linkedin_post: validated.linkedin_post || 'Check out this code analysis! #Zbloue',
           } as GenerateResponseValidated;
           logger.info(`[generate] Advanced pipeline succeeded with status: ${pipelineResult.status}`);
+          // ذخیره trace در result برای استفاده در صفحه اسنیپت
+          pipelineTrace = pipelineResult.trace;
         } catch (schemaError) {
           logger.error('[generate] Pipeline output failed schema validation, falling back to legacy:', schemaError);
           const legacyResult = await generateEducationalContent(code, language, mode);
@@ -227,5 +225,11 @@ export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
   const duration = Date.now() - startTime;
   logger.info(`[generate] Request completed in ${duration}ms for mode ${mode} (IP ${ip})`);
 
-  return NextResponse.json(result);
+  // در صورت وجود trace، آن را به response اضافه می‌کنیم (برای ذخیره در دیتابیس)
+  const responseData = { ...result };
+  if (pipelineTrace) {
+    (responseData as any).debug_trace = pipelineTrace;
+  }
+
+  return NextResponse.json(responseData);
 });

@@ -22,12 +22,7 @@ export default function SnippetJsonCopyButton({ snippet }: SnippetJsonCopyButton
     setIsLoading(true);
 
     try {
-      // Create a clean copy of the snippet without any circular references
-      const jsonString = JSON.stringify(snippet, (key, value) => {
-        // Skip internal or temporary fields if needed (none known)
-        return value;
-      }, 2);
-
+      const jsonString = JSON.stringify(snippet, null, 2);
       await navigator.clipboard.writeText(jsonString);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);

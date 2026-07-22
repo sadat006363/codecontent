@@ -48,6 +48,7 @@ const CreateSnippetRequestSchema = z
     scorecard_new: z.any().optional().nullable(),
     verdict: z.any().optional().nullable(),
     limitations: z.array(z.string().max(300)).max(20).optional().nullable(),
+    debug_trace: z.any().nullable().optional(), // ✅ اضافه شده
   })
   .strict();
 
@@ -147,6 +148,9 @@ function mapToDatabaseRow(body: CreateSnippetRequest, slug: string): SnippetInse
   if (body.verdict !== undefined) row.verdict = body.verdict;
   if (body.limitations !== undefined) row.limitations = body.limitations;
 
+  // ✅ Debug Trace
+  if (body.debug_trace !== undefined) row.debug_trace = body.debug_trace;
+
   return row;
 }
 
@@ -157,7 +161,6 @@ function mapToDatabaseRow(body: CreateSnippetRequest, slug: string): SnippetInse
 export const POST = withErrorHandlerAndLog(async (req: NextRequest) => {
   const ip = getClientIP(req);
 
-  // ===== Rate Limiter =====
   const rateLimitResult = await rateLimiter(ip);
   if (!rateLimitResult.allowed) {
     logger.warn(`[create-snippet] Rate limit exceeded for IP ${ip}`);
