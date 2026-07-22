@@ -17,6 +17,7 @@ import SnippetUserInfo from '@/components/snippet/SnippetUserInfo';
 import SnippetLineByLine from '@/components/snippet/SnippetLineByLine';
 import SnippetPrompt from '@/components/snippet/SnippetPrompt';
 import SnippetStatusBar from '@/components/snippet/SnippetStatusBar';
+import SnippetJsonCopyButton from '@/components/snippet/SnippetJsonCopyButton'; // ✅ جدید
 import DebugLogger from '@/components/DebugLogger';
 
 // ============================================================
@@ -168,6 +169,7 @@ async function highlightCode(code: string, language: string): Promise<string> {
 // 🔥 تابع بررسی وجود Full Report - نسخه ساده و قابل اعتماد
 // ============================================================
 function hasFullAnalysis(snippet: Snippet): boolean {
+  // بررسی مستقیم فیلدهای جدید (اولویت اول)
   const hasNewFields = !!(
     snippet.findings ||
     snippet.scorecard_new ||
@@ -185,6 +187,7 @@ function hasFullAnalysis(snippet: Snippet): boolean {
     return true;
   }
 
+  // اگر فیلدهای جدید نبودند، فیلدهای Legacy را بررسی کن
   const hasLegacyFields = !!(
     snippet.code_walkthrough ||
     snippet.what_works_well ||
@@ -229,6 +232,7 @@ export default async function SnippetPage({ params }: PageProps) {
   const highlightedHtml = await highlightCode(snippet.raw_code, snippet.language);
   const fullAnalysisExists = hasFullAnalysis(snippet);
 
+  // داده‌های دیباگ برای ارسال به کامپوننت DebugLogger
   const debugData = {
     fullAnalysisExists,
     findings: snippet.findings,
@@ -239,13 +243,17 @@ export default async function SnippetPage({ params }: PageProps) {
 
   return (
     <>
+      {/* 🔥 کامپوننت دیباگ لاگر - فقط در محیط Development */}
       {process.env.NODE_ENV === 'development' && <DebugLogger data={debugData} />}
 
       <main className="min-h-screen bg-[#f8f9fa]">
         <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
           
           {/* ===== 🔹 جایگاه اول: هدر ===== */}
-          <SnippetHeader shareUrl={shareUrl} />
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <SnippetHeader shareUrl={shareUrl} />
+            <SnippetJsonCopyButton snippet={snippet} />
+          </div>
 
           {/* ===== 🔹 جایگاه دوم: اطلاعات کاربر ===== */}
           <SnippetUserInfo
