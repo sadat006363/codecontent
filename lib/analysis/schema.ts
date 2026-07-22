@@ -62,6 +62,12 @@ export const VerdictStatusSchema = z.enum([
 ]);
 
 // ============================================================
+// REUSABLE ID SCHEMA (MISSING PREVIOUSLY)
+// ============================================================
+
+export const FindingIdSchema = z.string().regex(/^F-\d{3,}$/, 'Finding ID must match F-XXX');
+
+// ============================================================
 // NESTED SCHEMAS
 // ============================================================
 
@@ -75,7 +81,7 @@ export const EvidenceItemSchema = z.object({
 });
 
 export const AuditFindingSchema = z.object({
-  id: z.string().regex(/^F-\d{3,}$/, 'Finding ID must match F-XXX'),
+  id: FindingIdSchema,
   title: z.string().min(1, 'Finding title must not be empty'),
   category: FindingCategorySchema,
   severity: SeveritySchema,
