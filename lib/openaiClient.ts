@@ -66,7 +66,7 @@ export async function callOpenAI(
         response_format:
           responseFormat === 'json_object' ? { type: 'json_object' } : undefined,
         temperature,
-        // 🔥 استفاده از max_completion_tokens به جای max_tokens
+        // 🔥 استفاده از max_completion_tokens به جای max_completion_tokens
         max_completion_tokens: maxCompletionTokens,
       },
       { signal: options.signal || controller.signal }

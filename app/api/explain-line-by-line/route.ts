@@ -94,7 +94,7 @@ Provide a clear explanation for each line of code.
       ],
       temperature: 0.3,
       response_format: { type: 'json_object' },
-      max_tokens: 12000,
+      max_completion_tokens: 12000,
     },
     { signal: controller.signal }
   );

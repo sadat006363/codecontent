@@ -125,7 +125,7 @@ Create a prompt that would help someone understand this code deeply.
       ],
       temperature: 0.5,
       response_format: { type: 'json_object' },
-      max_tokens: 4000,
+      max_completion_tokens: 4000,
     },
     { signal: controller.signal }
   );
