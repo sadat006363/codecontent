@@ -65,9 +65,16 @@ function finalizeAuditCandidate(
 
   // Ensure candidate is a plain object
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    const issue: z.ZodIssue = {
+      code: 'invalid_type',
+      expected: 'object',
+      received: typeof candidate,
+      path: [],
+      message: 'Candidate must be a non-null object',
+    };
     return {
       success: false,
-      issues: [{ code: 'invalid_type', expected: 'object', received: typeof candidate, path: [], message: 'Candidate must be a non-null object' }],
+      issues: [issue],
     };
   }
 
@@ -185,7 +192,8 @@ export async function runAdvancedPipeline(
     }
 
     // ===== 4. First AI call =====
-    const systemPrompt = 'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
+    const systemPrompt =
+      'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
     let rawContent: string;
     try {
@@ -214,7 +222,7 @@ export async function runAdvancedPipeline(
       if (MAX_REPAIR_ATTEMPTS > 0) {
         const repairResult = await attemptRepairWithBudget(
           numberedCode,
-          null, // no previous valid candidate
+          null,
           {
             structurallyValid: false,
             semanticallyComplete: false,
@@ -231,7 +239,7 @@ export async function runAdvancedPipeline(
           },
           language,
           auditType,
-          0, // first attempt
+          0,
           MAX_REPAIR_ATTEMPTS
         );
         if (repairResult) {
@@ -302,10 +310,7 @@ export async function runAdvancedPipeline(
     let finalCandidate: unknown = parsed;
     let finalValidation = initialValidation;
 
-    while (
-      lastValidation.repairRequired &&
-      repairAttempts < MAX_REPAIR_ATTEMPTS
-    ) {
+    while (lastValidation.repairRequired && repairAttempts < MAX_REPAIR_ATTEMPTS) {
       logger.info(`[Pipeline] Repair attempt ${repairAttempts + 1} triggered`);
       const repaired = await attemptRepairWithBudget(
         numberedCode,
@@ -313,7 +318,7 @@ export async function runAdvancedPipeline(
         lastValidation,
         language,
         auditType,
-        repairAttempts, // current attempt index (0-based)
+        repairAttempts,
         MAX_REPAIR_ATTEMPTS
       );
 
@@ -379,7 +384,6 @@ export async function runAdvancedPipeline(
       status: 'failed_validation',
       error: 'Validation failed after all repair attempts',
     };
-
   } catch (error) {
     logger.error('[Pipeline] Unhandled error:', error);
     return {
