@@ -221,6 +221,10 @@ export interface CreateSnippetResponse {
  * این تایپ ترکیبی از Legacy و Advanced است
  */
 export interface GenerateResponse extends Partial<AdvancedAuditResult> {
+  // ===== فیلدهای اضافی برای سازگاری با UI =====
+  title?: string;                // برای استفاده در app/page.tsx
+  highLevelSummary?: string;     // برای استفاده در app/page.tsx
+
   // ===== Legacy فیلدها =====
   analysis?: string;
   card_title?: string;
@@ -315,7 +319,7 @@ export interface AppState {
 
 // این exportها برای سازگاری با صفحه اصلی اضافه شده‌اند
 // و به تایپ‌های Legacy اشاره می‌کنند
-export type { 
+export type {
   LegacyCodeWalkthroughItem,
   LegacyBugAndRiskyCase,
   LegacyEdgeCase,
@@ -329,7 +333,7 @@ export type {
 
 // همچنین برای راحتی، نام‌های کوتاه‌تر را نیز صادر می‌کنیم
 // که همان تایپ‌های Legacy هستند
-export type { 
+export type {
   LegacyCodeWalkthroughItem as CodeWalkthroughItem,
   LegacyBugAndRiskyCase as BugAndRiskyCase,
   LegacyEdgeCase as EdgeCase,
