@@ -1,6 +1,11 @@
 // lib/openaiClient.ts
 
-import OpenAI from 'openai';
+import { callLLM, callLLMJson, type GatewayRequest, type GatewayResult } from './llm-gateway';
+import type { z } from 'zod';
+
+// ============================================================
+// 🔥 Legacy interface - wraps the new Gateway
+// ============================================================
 
 export const MODEL_CONFIG = {
   simple: {
@@ -25,18 +30,19 @@ export const MODEL_CONFIG = {
 
 export type ModelMode = keyof typeof MODEL_CONFIG;
 
-const openaiApiKey = process.env.OPENAI_API_KEY || 'placeholder-key';
-const openai = new OpenAI({ apiKey: openaiApiKey });
-
 export interface OpenAICallOptions {
   mode?: ModelMode;
   model?: string;
-  maxCompletionTokens?: number; // 🔥 تغییر نام از maxTokens به maxCompletionTokens
+  maxCompletionTokens?: number;
   timeout?: number;
   temperature?: number;
   responseFormat?: 'json_object' | 'text';
   signal?: AbortSignal;
 }
+
+// ============================================================
+// 🔥 Legacy callOpenAI - uses Gateway for Advanced, direct for others
+// ============================================================
 
 export async function callOpenAI(
   systemPrompt: string,
@@ -44,8 +50,28 @@ export async function callOpenAI(
   options: OpenAICallOptions = {}
 ): Promise<string> {
   const mode = options.mode || 'advanced';
-  const config = MODEL_CONFIG[mode];
 
+  // For Advanced mode, use the Gateway with GPT-5 family
+  if (mode === 'advanced' && process.env.LLM_GATEWAY_ENABLED !== 'false') {
+    const result = await callLLM<string>({
+      systemPrompt,
+      userPrompt,
+      role: 'primary',
+      temperature: options.temperature,
+      maxTokens: options.maxCompletionTokens,
+      responseFormat: options.responseFormat || 'json_object',
+    });
+
+    if (result.success && result.data !== undefined) {
+      return result.data as string;
+    }
+
+    // If Gateway fails, we could fall back to legacy, but we'll throw the error
+    throw new Error(result.error?.message || 'LLM Gateway request failed');
+  }
+
+  // For Simple/Medium or when Gateway is disabled, use the legacy direct call
+  const config = MODEL_CONFIG[mode];
   const model = options.model || config.model;
   const maxCompletionTokens = options.maxCompletionTokens || config.maxCompletionTokens;
   const timeout = options.timeout || config.timeout;
@@ -56,24 +82,30 @@ export async function callOpenAI(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await openai.chat.completions.create(
-      {
+    const response = await fetch('/api/openai-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemPrompt,
+        userPrompt,
         model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format:
-          responseFormat === 'json_object' ? { type: 'json_object' } : undefined,
+        maxCompletionTokens,
         temperature,
-        // 🔥 استفاده از max_completion_tokens به جای max_completion_tokens
-        max_completion_tokens: maxCompletionTokens,
-      },
-      { signal: options.signal || controller.signal }
-    );
+        responseFormat,
+        mode,
+      }),
+      signal: options.signal || controller.signal,
+    });
 
     clearTimeout(timeoutId);
-    return response.choices[0].message.content || '{}';
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'OpenAI request failed');
+    }
+
+    const data = await response.json();
+    return data.content || '{}';
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
@@ -82,6 +114,10 @@ export async function callOpenAI(
     throw error;
   }
 }
+
+// ============================================================
+// 🔥 Legacy callOpenAIJson
+// ============================================================
 
 export async function callOpenAIJson<T>(
   systemPrompt: string,
@@ -103,3 +139,10 @@ export async function callOpenAIJson<T>(
     throw new Error('AI response format error. Please try again.');
   }
 }
+
+// ============================================================
+// 🔥 New: Direct Gateway access for Advanced pipeline
+// ============================================================
+
+export { callLLM, callLLMJson } from './llm-gateway';
+export type { GatewayRequest, GatewayResult } from './llm-gateway';

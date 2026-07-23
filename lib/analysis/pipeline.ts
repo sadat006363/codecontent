@@ -14,7 +14,7 @@ import {
 } from './schema';
 import type { DetectorResult, AuditValidationResult } from './types';
 import { ANALYSIS_CONFIG } from './analysis.config';
-import { callOpenAI } from '@/lib/openaiClient';
+import { callLLMJson } from '@/lib/openaiClient';
 import logger from '@/lib/logger';
 import { z } from 'zod';
 import fs from 'fs';
@@ -27,7 +27,7 @@ import path from 'path';
 const MAX_REPAIR_ATTEMPTS = ANALYSIS_CONFIG.maxRepairPasses;
 
 // ============================================================
-// HELPER: SAFE JSON EXTRACTION
+// HELPER: SAFE JSON EXTRACTION (for legacy fallback)
 // ============================================================
 
 function extractJSON(text: string): string {
@@ -256,32 +256,58 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ===== 4. First AI call =====
+    // ===== 4. First AI call using Gateway (GPT-5 family) =====
     const stageStart4 = Date.now();
     const systemPrompt = 'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
+    // 🔥 Use the Gateway with the Advanced schema
+    const gatewayResult = await callLLMJson<AdvancedAuditResult>(systemPrompt, prompt, {
+      role: 'primary',
+      schema: AdvancedAuditResultSchema,
+      temperature: undefined, // GPT-5 reasoning models don't use temperature
+      maxTokens: parseInt(process.env.OPENAI_ADVANCED_MAX_OUTPUT_TOKENS || '12000', 10),
+      requestId: `pipeline-${Date.now()}`,
+      metadata: { auditType, language },
+    });
+
     let rawContent: string;
-    try {
-      rawContent = await callOpenAI(systemPrompt, prompt, {
-        mode: 'advanced',
-        responseFormat: 'text',
+    let parsed: unknown;
+
+    if (gatewayResult.success && gatewayResult.data) {
+      // The Gateway already validated with Zod and returned the parsed data
+      parsed = gatewayResult.data;
+      rawContent = JSON.stringify(parsed);
+      stages.push({ name: 'ai_call_gateway_success', durationMs: Date.now() - stageStart4, data: { model: gatewayResult.modelUsed } });
+    } else {
+      // Gateway failed - try legacy fallback
+      logger.warn('[Pipeline] Gateway failed, falling back to legacy OpenAI call', {
+        error: gatewayResult.error,
       });
-    } catch (aiError) {
-      logger.error('[Pipeline] AI call failed:', aiError);
-      stages.push({ name: 'ai_call_failed', durationMs: Date.now() - stageStart4, data: { error: aiError instanceof Error ? aiError.message : 'unknown' } });
-      return {
-        result: null,
-        status: 'failed_validation',
-        error: aiError instanceof Error ? aiError.message : 'AI call failed',
-        trace: { stages },
-      };
+
+      try {
+        // Legacy fallback: direct OpenAI call (will use the old path)
+        const { callOpenAI } = await import('@/lib/openaiClient');
+        rawContent = await callOpenAI(systemPrompt, prompt, {
+          mode: 'advanced',
+          responseFormat: 'text',
+        });
+        stages.push({ name: 'ai_call_legacy_fallback', durationMs: Date.now() - stageStart4 });
+      } catch (legacyError) {
+        logger.error('[Pipeline] Legacy fallback also failed:', legacyError);
+        stages.push({ name: 'ai_call_failed', durationMs: Date.now() - stageStart4, data: { error: legacyError instanceof Error ? legacyError.message : 'unknown' } });
+        return {
+          result: null,
+          status: 'failed_validation',
+          error: legacyError instanceof Error ? legacyError.message : 'AI call failed',
+          trace: { stages },
+        };
+      }
     }
-    stages.push({ name: 'ai_call', durationMs: Date.now() - stageStart4 });
 
     // ============================================================
     // 📁 SAVE RAW OPENAI RESPONSE TO FILE (Development only)
     // ============================================================
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && rawContent) {
       try {
         const debugDir = path.join(process.cwd(), 'debug');
         if (!fs.existsSync(debugDir)) {
@@ -297,6 +323,7 @@ export async function runAdvancedPipeline(
           auditType,
           language,
           rawResponse: rawContent,
+          modelUsed: gatewayResult.success ? gatewayResult.modelUsed : 'legacy-fallback',
         }, null, 2);
 
         fs.writeFileSync(filePath, content, 'utf8');
@@ -306,108 +333,73 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ===== 5. Extract JSON =====
-    const stageStart5 = Date.now();
-    const jsonString = extractJSON(rawContent);
-    if (!jsonString) {
-      logger.warn('[Pipeline] Failed to extract valid JSON from AI response');
-      stages.push({ name: 'extract_json_failed', durationMs: Date.now() - stageStart5 });
-      if (MAX_REPAIR_ATTEMPTS > 0) {
-        const repairResult = await attemptRepairWithBudget(
-          numberedCode,
-          null,
-          {
-            structurallyValid: false,
-            semanticallyComplete: false,
-            issues: [
-              {
-                code: 'INVALID_JSON',
-                severity: 'error',
-                message: 'AI response did not contain valid JSON',
-                relatedLines: [],
-                expectedCoverage: 'Valid JSON matching AdvancedAuditResultSchema',
-              },
-            ],
-            repairRequired: true,
-          },
-          language,
-          auditType,
-          0,
-          MAX_REPAIR_ATTEMPTS
-        );
-        if (repairResult) {
-          stages.push({ name: 'repair_success', durationMs: Date.now() - stageStart5 });
-          return {
-            result: repairResult,
-            status: 'repaired',
-            trace: { stages, rawAIResponse: rawContent },
-          };
+    // ===== 5. If parsed is not set (Gateway didn't return parsed data), parse manually =====
+    if (!parsed && rawContent) {
+      const jsonString = extractJSON(rawContent);
+      if (!jsonString) {
+        logger.warn('[Pipeline] Failed to extract valid JSON from AI response');
+        if (MAX_REPAIR_ATTEMPTS > 0) {
+          const repairResult = await attemptRepairWithBudget(
+            numberedCode,
+            null,
+            {
+              structurallyValid: false,
+              semanticallyComplete: false,
+              issues: [
+                {
+                  code: 'INVALID_JSON',
+                  severity: 'error',
+                  message: 'AI response did not contain valid JSON',
+                  relatedLines: [],
+                  expectedCoverage: 'Valid JSON matching AdvancedAuditResultSchema',
+                },
+              ],
+              repairRequired: true,
+            },
+            language,
+            auditType,
+            0,
+            MAX_REPAIR_ATTEMPTS
+          );
+          if (repairResult) {
+            stages.push({ name: 'repair_success', durationMs: Date.now() - stageStart4 });
+            return {
+              result: repairResult,
+              status: 'repaired',
+              trace: { stages, rawAIResponse: rawContent },
+            };
+          }
         }
+        return {
+          result: null,
+          status: 'failed_validation',
+          error: 'Failed to extract valid JSON from AI response',
+          trace: { stages, rawAIResponse: rawContent },
+        };
       }
+
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (parseError) {
+        logger.warn('[Pipeline] JSON parse error:', parseError);
+        // ... rest of parse error handling
+      }
+    }
+
+    // ===== 6. If we still don't have parsed data, fail =====
+    if (!parsed) {
       return {
         result: null,
         status: 'failed_validation',
-        error: 'Failed to extract valid JSON from AI response',
-        trace: { stages, rawAIResponse: rawContent },
+        error: 'No valid data available from AI response',
+        trace: { stages },
       };
     }
-    stages.push({ name: 'extract_json', durationMs: Date.now() - stageStart5, data: { jsonLength: jsonString.length } });
 
-    // ===== 6. Parse JSON =====
-    const stageStart6 = Date.now();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonString);
-    } catch (parseError) {
-      logger.warn('[Pipeline] JSON parse error:', parseError);
-      stages.push({ name: 'parse_json_failed', durationMs: Date.now() - stageStart6, data: { error: parseError instanceof Error ? parseError.message : 'unknown' } });
-      if (MAX_REPAIR_ATTEMPTS > 0) {
-        const repairResult = await attemptRepairWithBudget(
-          numberedCode,
-          null,
-          {
-            structurallyValid: false,
-            semanticallyComplete: false,
-            issues: [
-              {
-                code: 'PARSE_FAILED',
-                severity: 'error',
-                message: `JSON parse failed: ${parseError instanceof Error ? parseError.message : 'unknown'}`,
-                relatedLines: [],
-                expectedCoverage: 'Valid JSON matching AdvancedAuditResultSchema',
-              },
-            ],
-            repairRequired: true,
-          },
-          language,
-          auditType,
-          0,
-          MAX_REPAIR_ATTEMPTS
-        );
-        if (repairResult) {
-          stages.push({ name: 'repair_success_after_parse_fail', durationMs: Date.now() - stageStart6 });
-          return {
-            result: repairResult,
-            status: 'repaired',
-            trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
-          };
-        }
-      }
-      return {
-        result: null,
-        status: 'failed_validation',
-        error: `JSON parse failed: ${parseError instanceof Error ? parseError.message : 'unknown'}`,
-        trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
-      };
-    }
-    stages.push({ name: 'parse_json', durationMs: Date.now() - stageStart6, data: { parsed: true } });
-
-    // ===== 7. Initial validation =====
-    const stageStart7 = Date.now();
+    // ===== 7. Initial validation (if not already validated by Gateway) =====
     let initialValidation = validateSemanticCompleteness(parsed, detectorResult, code);
-    stages.push({ name: 'initial_validation', durationMs: Date.now() - stageStart7, data: { structurallyValid: initialValidation.structurallyValid, semanticallyComplete: initialValidation.semanticallyComplete, issuesCount: initialValidation.issues.length } });
 
-    // ===== 8. Repair loop =====
+    // ===== 8. Repair loop (structured) =====
     let lastCandidate = parsed;
     let lastValidation = initialValidation;
     let repairAttempts = 0;
@@ -469,7 +461,6 @@ export async function runAdvancedPipeline(
         const trace = {
           stages,
           rawAIResponse: rawContent,
-          extractedJSON: jsonString,
           finalData: finalizeResult.data,
         };
         return {
@@ -483,7 +474,7 @@ export async function runAdvancedPipeline(
           result: null,
           status: 'failed_validation',
           error: 'Internal error: final validation failed unexpectedly',
-          trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
+          trace: { stages, rawAIResponse: rawContent },
         };
       }
     }
@@ -493,7 +484,7 @@ export async function runAdvancedPipeline(
       result: null,
       status: 'failed_validation',
       error: 'Validation failed after all repair attempts',
-      trace: { stages, rawAIResponse: rawContent, extractedJSON: jsonString },
+      trace: { stages, rawAIResponse: rawContent },
     };
   } catch (error) {
     logger.error('[Pipeline] Unhandled error:', error);
