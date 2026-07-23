@@ -98,13 +98,14 @@ export function normalizeSnippetAudit(row: any): NormalizedSnippetAudit {
   }
 
   // 2. Fallback به داده‌های Legacy
+  // 🔥 اصلاح: اگر legacyRowToAudit null برگرداند، به جای آن یک آبجکت خالی استفاده کن
   const legacyAudit = legacyRowToAudit(row);
-  const hasLegacyData = Object.keys(legacyAudit).length > 0;
+  const hasLegacyData = legacyAudit !== null && Object.keys(legacyAudit).length > 0;
 
   if (hasLegacyData) {
     logger.debug('[NormalizeSnippetAudit] Using legacy audit data', { slug: row.slug });
     return {
-      status: { type: 'legacy', audit: legacyAudit },
+      status: { type: 'legacy', audit: legacyAudit as Partial<AdvancedAuditResult> },
       hasFullAnalysis: true,
       findingsCount: legacyAudit.findings?.length || 0,
       verdictStatus: legacyAudit.verdict?.status,
