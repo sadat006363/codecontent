@@ -33,7 +33,6 @@ import {
   RecommendedImprovement,
   SuggestedTest,
   ScorecardLegacy,
-  DebugTrace,
 } from '@/types';
 import logger from '@/lib/logger';
 
@@ -266,7 +265,7 @@ function HomeContent() {
       scorecard_new: (payload.scorecard_new as AuditScorecard) || undefined,
       verdict: (payload.verdict as AdvancedAuditResult['verdict']) || undefined,
       limitations: (payload.limitations as string[]) || undefined,
-      debug_trace: (payload.debug_trace as DebugTrace) || undefined,
+      // debug_trace: (payload.debug_trace as DebugTrace) || undefined, // ❌ حذف شده
     };
   }, [username, githubUsername]);
 
@@ -277,11 +276,7 @@ function HomeContent() {
   ): SaveSnippetData => {
     const linkedin_post = genData.linkedin_post || 'Check out this code analysis! #Zbloue';
 
-    // ایجاد DebugTrace
-    const debugTrace: DebugTrace | undefined = (genData as any).debug_trace ? {
-      timestamp: new Date().toISOString(),
-      stages: (genData as any).debug_trace.stages || [],
-    } : undefined;
+    // ❌ debug_trace حذف شده است
 
     if (mode === 'advanced') {
       const card_title = genData.title ?? genData.card_title ?? 'Code Analysis';
@@ -354,10 +349,7 @@ function HomeContent() {
         limitations: genData.limitations || null,
       };
 
-      // افزودن debug_trace در صورت وجود
-      if (debugTrace) {
-        return { ...baseData, debug_trace: debugTrace };
-      }
+      // ❌ debug_trace حذف شده است
       return baseData;
 
     } else {
@@ -377,7 +369,7 @@ function HomeContent() {
         username: username || 'Developer',
         github_username: githubUsername || null,
         avatar_url: avatarUrl,
-        debug_trace: debugTrace || null,
+        // debug_trace: debugTrace || null, // ❌ حذف شده
       };
     }
   }, [mode, username, githubUsername, avatarUrl]);

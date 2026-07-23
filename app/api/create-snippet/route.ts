@@ -9,7 +9,7 @@ import { rateLimiter, getClientIP } from '@/lib/rateLimiter';
 import { withErrorHandlerAndLog } from '@/lib/errorHandler';
 
 // ============================================================
-// 1. Zod schemas
+// 1. Zod schemas (بدون debug_trace)
 // ============================================================
 
 const CreateSnippetRequestSchema = z
@@ -48,7 +48,7 @@ const CreateSnippetRequestSchema = z
     scorecard_new: z.any().optional().nullable(),
     verdict: z.any().optional().nullable(),
     limitations: z.array(z.string().max(300)).max(20).optional().nullable(),
-    debug_trace: z.any().nullable().optional(), // ✅ اضافه شده
+    // ❌ debug_trace: z.any().nullable().optional(), // حذف شده
   })
   .strict();
 
@@ -96,7 +96,7 @@ async function generateUniqueSlug(retries = MAX_SLUG_RETRIES): Promise<string> {
 }
 
 // ============================================================
-// 3. Database mapper
+// 3. Database mapper (بدون debug_trace)
 // ============================================================
 
 type SnippetInsert = any;
@@ -148,8 +148,8 @@ function mapToDatabaseRow(body: CreateSnippetRequest, slug: string): SnippetInse
   if (body.verdict !== undefined) row.verdict = body.verdict;
   if (body.limitations !== undefined) row.limitations = body.limitations;
 
-  // ✅ Debug Trace
-  if (body.debug_trace !== undefined) row.debug_trace = body.debug_trace;
+  // ❌ debug_trace حذف شده
+  // if (body.debug_trace !== undefined) row.debug_trace = body.debug_trace;
 
   return row;
 }
