@@ -1,6 +1,6 @@
 // lib/analysis/to-snippet.ts
 
-import { AdvancedAuditResult, ImprovedCode, AdvancedAuditResultSchema } from './schema';
+import { AdvancedAuditResult, AdvancedAuditResultSchema } from './schema';
 import type { Database } from '@/types/supabase';
 
 type SnippetInsert = Database['public']['Tables']['snippets']['Insert'];
@@ -37,7 +37,8 @@ export function toSnippetInsert(
     language: context.sourceLanguage,
 
     // ===== فیلدهای اجباری Legacy =====
-    card_title: audit.title || 'Code Analysis',
+    // 🔥 اصلاح: استفاده از summary به‌جای title (چون title در AdvancedAuditResult وجود ندارد)
+    card_title: audit.summary?.slice(0, 100) || 'Code Analysis',
     key_concept: audit.summary?.slice(0, 2000) || '',
     what_this_code_does: audit.executionOverview?.entryPoints?.join(', ') || '',
     debug_analysis: audit.findings?.length ? `${audit.findings.length} findings` : '-',
@@ -84,14 +85,13 @@ export function toSnippetInsert(
     limitations: audit.limitations || null,
 
     // ===== فیلدهای جدید =====
-    // improved_code_jsonb: ذخیره‌سازی کامل improvedCode
     improved_code_jsonb: {
       available: audit.improvedCode.available,
       code: audit.improvedCode.code,
       notes: audit.improvedCode.notes || (audit.improvedCode.available ? 'Code patch provided.' : 'No safe patch available.'),
     } as any,
 
-    // ===== 🔥 ذخیره خروجی کامل Audit =====
+    // ===== ذخیره خروجی کامل Audit =====
     audit_result: audit as any,
   };
 
@@ -166,7 +166,6 @@ export function legacyRowToAudit(row: any): AdvancedAuditResult | null {
     if (row.scorecard_new) {
       audit.scorecard = row.scorecard_new;
     } else if (row.scorecard) {
-      // تبدیل Legacy Scorecard (0-10 عددی) به Canonical
       const legacy = row.scorecard;
       audit.scorecard = {
         correctness: { score: (legacy.correctness || 0) * 10, reason: 'Migrated from legacy', relatedFindings: [] },
