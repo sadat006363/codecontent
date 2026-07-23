@@ -54,7 +54,6 @@ const CONCURRENCY_SIGNALS: Record<string, Array<{ pattern: RegExp; type: string 
     { pattern: /\bawait\b/, type: 'AWAIT' },
     { pattern: /\basync\s+def\b/, type: 'ASYNC_DEF' },
   ],
-  // زبان‌های دیگر با Regex
 };
 
 // ============================================================
@@ -65,7 +64,6 @@ function detectWithAST(code: string, language: string): DetectorSignal[] {
   const signals: DetectorSignal[] = [];
   const seen = new Set<string>();
 
-  // فقط برای JavaScript و TypeScript از AST استفاده می‌کنیم
   const isJsTs = ['javascript', 'typescript', 'js', 'ts'].includes(language.toLowerCase());
 
   if (!isJsTs) {
@@ -113,36 +111,38 @@ function detectWithAST(code: string, language: string): DetectorSignal[] {
         }
       },
 
-      // ===== تشخیص Promise =====
+      // ===== تشخیص new Promise() و new Worker() در یک جا (رفع Duplicate identifier) =====
       NewExpression(path) {
-        if (t.isIdentifier(path.node.callee) && path.node.callee.name === 'Promise') {
+        if (t.isIdentifier(path.node.callee)) {
+          const calleeName = path.node.callee.name;
           const line = path.node.loc?.start.line || 0;
-          const key = `PROMISE-${line}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            signals.push({
-              type: 'PROMISE',
-              value: 'new Promise()',
-              line,
-              weight: SIGNAL_WEIGHTS.PROMISE || 2,
-            });
-          }
-        }
-      },
 
-      // ===== تشخیص Worker =====
-      NewExpression(path) {
-        if (t.isIdentifier(path.node.callee) && path.node.callee.name === 'Worker') {
-          const line = path.node.loc?.start.line || 0;
-          const key = `WORKER-${line}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            signals.push({
-              type: 'WORKER',
-              value: 'new Worker()',
-              line,
-              weight: SIGNAL_WEIGHTS.WORKER_THREAD || 3,
-            });
+          // تشخیص Promise
+          if (calleeName === 'Promise') {
+            const key = `PROMISE-${line}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              signals.push({
+                type: 'PROMISE',
+                value: 'new Promise()',
+                line,
+                weight: SIGNAL_WEIGHTS.PROMISE || 2,
+              });
+            }
+          }
+
+          // تشخیص Worker
+          if (calleeName === 'Worker') {
+            const key = `WORKER-${line}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              signals.push({
+                type: 'WORKER',
+                value: 'new Worker()',
+                line,
+                weight: SIGNAL_WEIGHTS.WORKER_THREAD || 3,
+              });
+            }
           }
         }
       },
@@ -193,7 +193,6 @@ function detectWithAST(code: string, language: string): DetectorSignal[] {
     logger.debug('[Detector] AST detection found', signals.length, 'signals');
   } catch (error) {
     logger.error('[Detector] AST parsing failed, falling back to regex:', error);
-    // در صورت خطا، به Regex برگردیم
   }
 
   return signals;
@@ -213,7 +212,6 @@ function detectWithRegex(code: string, language: string): DetectorSignal[] {
   } else if (normalized.includes('python')) {
     patterns = CONCURRENCY_SIGNALS.python;
   } else {
-    // زبان‌های دیگر از یک مجموعه عمومی استفاده می‌کنند
     patterns = CONCURRENCY_SIGNALS.java; // fallback
     logger.debug('[Detector] Using fallback regex patterns for language:', language);
   }
@@ -264,7 +262,6 @@ export function detectConcurrencySignals(
 
   let signals: DetectorSignal[] = [];
 
-  // ===== انتخاب روش تشخیص =====
   const isJsTs = ['javascript', 'typescript', 'js', 'ts'].includes(language.toLowerCase());
 
   if (isJsTs) {
