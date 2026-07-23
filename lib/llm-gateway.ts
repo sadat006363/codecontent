@@ -1,6 +1,7 @@
 // lib/llm-gateway.ts
 
 import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import {
@@ -26,12 +27,25 @@ const GATEWAY_ENABLED = process.env.LLM_GATEWAY_ENABLED !== 'false';
 
 const openaiApiKey = process.env.OPENAI_API_KEY || '';
 if (!openaiApiKey) {
-  console.warn('⚠️ OPENAI_API_KEY is not set. LLM Gateway will fail.');
+  console.warn('⚠️ OPENAI_API_KEY is not set. OpenAI will fail.');
 }
 
 const openai = new OpenAI({
   apiKey: openaiApiKey,
   timeout: REQUEST_TIMEOUT_MS,
+});
+
+// ============================================================
+// 🔥 Anthropic Client
+// ============================================================
+
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY || '';
+if (!anthropicApiKey) {
+  console.warn('⚠️ ANTHROPIC_API_KEY is not set. Anthropic will fail.');
+}
+
+const anthropic = new Anthropic({
+  apiKey: anthropicApiKey,
 });
 
 // ============================================================
@@ -50,8 +64,9 @@ export interface GatewayRequest {
   requestId?: string;
   rootRequestId?: string;
   metadata?: Record<string, unknown>;
-  disableFallback?: boolean; // برای Legacy
-  deadline?: number; // زمان مطلق (timestamp) برای کل pipeline
+  disableFallback?: boolean;
+  deadline?: number;
+  provider?: 'openai' | 'anthropic' | 'auto';
 }
 
 export interface GatewayResult<T = unknown> {
@@ -61,6 +76,7 @@ export interface GatewayResult<T = unknown> {
   modelUsed: string;
   modelKey: string;
   api: string;
+  provider: 'openai' | 'anthropic';
   attempt: number;
   durationMs: number;
 }
@@ -91,10 +107,15 @@ export type LLMErrorCode =
   | 'UNKNOWN';
 
 // ============================================================
-// 🔥 Error Classification (اصلاح شده)
+// 🔥 Error Classification
 // ============================================================
 
-function classifyError(error: unknown, modelKey: string, rootRequestId?: string): NormalizedLLMError {
+function classifyError(
+  error: unknown,
+  modelKey: string,
+  rootRequestId?: string,
+  provider: 'openai' | 'anthropic' = 'openai'
+): NormalizedLLMError {
   const defaultError: NormalizedLLMError = {
     code: 'UNKNOWN',
     message: 'An unknown error occurred',
@@ -110,13 +131,12 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
   const providerCode = err.code || err.error?.code;
   const providerMessage = err.message || err.error?.message || '';
 
-  // ===== تشخیص Timeout/Abort =====
+  // ===== Timeout/Abort =====
   const isAbort = err.name === 'AbortError' ||
     err.code === 'ABORT_ERR' ||
     err.code === 'ETIMEDOUT' ||
-    providerMessage.toLowerCase().includes('request was aborted') ||
-    providerMessage.toLowerCase().includes('aborted') ||
-    providerMessage.toLowerCase().includes('timeout');
+    providerMessage.toLowerCase().includes('timeout') ||
+    providerMessage.toLowerCase().includes('aborted');
 
   if (isAbort) {
     return {
@@ -134,7 +154,7 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
   if (status === 401 || providerCode === 'invalid_api_key' || providerMessage.includes('API key')) {
     return {
       code: 'AUTHENTICATION_ERROR',
-      message: 'Invalid OpenAI API key. Please check your configuration.',
+      message: `Invalid ${provider} API key. Please check your configuration.`,
       retryable: false,
       providerStatus: status,
       providerCode,
@@ -147,20 +167,7 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
   if (status === 404 || providerCode === 'model_not_found' || providerMessage.includes('model')) {
     return {
       code: 'MODEL_UNAVAILABLE',
-      message: `Model "${modelKey}" is not available.`,
-      retryable: false,
-      providerStatus: status,
-      providerCode,
-      model: modelKey,
-      rootRequestId,
-    };
-  }
-
-  // ===== Unsupported Parameter =====
-  if (providerCode === 'unsupported_parameter' || providerMessage.includes('unsupported parameter')) {
-    return {
-      code: 'UNSUPPORTED_PARAMETER',
-      message: providerMessage,
+      message: `Model "${modelKey}" is not available on ${provider}.`,
       retryable: false,
       providerStatus: status,
       providerCode,
@@ -173,7 +180,7 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
   if (status === 429 || providerCode === 'rate_limit_exceeded') {
     return {
       code: 'RATE_LIMITED',
-      message: 'Rate limit exceeded. Please try again later.',
+      message: `Rate limit exceeded on ${provider}. Please try again later.`,
       retryable: true,
       providerStatus: status,
       providerCode,
@@ -182,11 +189,11 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
     };
   }
 
-  // ===== Server Errors (5xx) =====
+  // ===== Server Errors =====
   if (status && status >= 500 && status < 600) {
     return {
       code: 'PROVIDER_UNAVAILABLE',
-      message: 'OpenAI service is temporarily unavailable.',
+      message: `${provider} service is temporarily unavailable.`,
       retryable: true,
       providerStatus: status,
       providerCode,
@@ -208,10 +215,9 @@ function classifyError(error: unknown, modelKey: string, rootRequestId?: string)
     };
   }
 
-  // ===== Fallback =====
   return {
     code: 'UNKNOWN',
-    message: providerMessage || 'An unknown error occurred',
+    message: providerMessage || `An unknown error occurred on ${provider}`,
     retryable: false,
     providerStatus: status,
     providerCode,
@@ -235,57 +241,10 @@ function getBackoffDelay(attempt: number): number {
 }
 
 // ============================================================
-// 🔥 Build Payload (بدون پارامترهای ناسازگار)
+// 🔥 Execute OpenAI Call
 // ============================================================
 
-function buildPayload(
-  model: ModelCapability,
-  systemPrompt: string,
-  userPrompt: string,
-  options: {
-    temperature?: number;
-    maxTokens?: number;
-    responseFormat?: 'json_object' | 'text';
-  }
-): any {
-  const payload: any = {
-    model: model.model,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-  };
-
-  // ===== Token parameter =====
-  const maxTokens = options.maxTokens || model.defaultMaxTokens;
-  payload[model.tokenParam] = maxTokens;
-
-  // ===== Temperature =====
-  if (model.supportsTemperature && options.temperature !== undefined) {
-    payload.temperature = options.temperature;
-  } else if (model.supportsTemperature) {
-    payload.temperature = 0.3;
-  }
-  // اگر supportsTemperature false باشد، temperature ارسال نمی‌شود
-
-  // ===== Reasoning =====
-  if (model.supportsReasoning && model.reasoningEffort) {
-    payload.reasoning = { effort: model.reasoningEffort };
-  }
-
-  // ===== Response format =====
-  if (options.responseFormat === 'json_object') {
-    payload.response_format = { type: 'json_object' };
-  }
-
-  return payload;
-}
-
-// ============================================================
-// 🔥 Execute Single Model Call
-// ============================================================
-
-async function executeModelCall(
+async function executeOpenAICall(
   model: ModelCapability,
   systemPrompt: string,
   userPrompt: string,
@@ -295,19 +254,37 @@ async function executeModelCall(
     responseFormat?: 'json_object' | 'text';
     signal?: AbortSignal;
     timeoutMs?: number;
-    rootRequestId?: string;
   }
-): Promise<{ content: string; model: string; api: string }> {
-  const payload = buildPayload(model, systemPrompt, userPrompt, options);
+): Promise<{ content: string; model: string; api: string; provider: 'openai' }> {
+  const payload: any = {
+    model: model.model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  };
+
+  const maxTokens = options.maxTokens || model.defaultMaxTokens;
+  payload[model.tokenParam] = maxTokens;
+
+  if (model.supportsTemperature && options.temperature !== undefined) {
+    payload.temperature = options.temperature;
+  } else if (model.supportsTemperature) {
+    payload.temperature = 0.3;
+  }
+
+  if (model.supportsReasoning && model.reasoningEffort) {
+    payload.reasoning = { effort: model.reasoningEffort };
+  }
+
+  if (options.responseFormat === 'json_object') {
+    payload.response_format = { type: 'json_object' };
+  }
+
   const timeoutMs = options.timeoutMs || REQUEST_TIMEOUT_MS;
 
   const controller = new AbortController();
-  let abortedByTimeout = false;
-
-  const timer = setTimeout(() => {
-    abortedByTimeout = true;
-    controller.abort();
-  }, timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await openai.chat.completions.create(payload, {
@@ -319,34 +296,131 @@ async function executeModelCall(
       content,
       model: model.model,
       api: 'chat-completions',
+      provider: 'openai',
     };
   } catch (error) {
     clearTimeout(timer);
-    if (abortedByTimeout) {
-      throw new Error('Request was aborted by internal timeout.');
-    }
     throw error;
   }
 }
 
 // ============================================================
-// 🔥 Deduplicate Models
+// 🔥 Execute Anthropic Call
 // ============================================================
 
-function deduplicateModels(modelKeys: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
+async function executeAnthropicCall(
+  modelKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+  }
+): Promise<{ content: string; model: string; api: string; provider: 'anthropic' }> {
+  const model = modelKey === 'claude-3-5-sonnet' ? 'claude-3-5-sonnet-20241022' :
+                modelKey === 'claude-3-opus' ? 'claude-3-opus-20240229' :
+                modelKey === 'claude-3-haiku' ? 'claude-3-haiku-20240307' :
+                'claude-3-5-sonnet-20241022';
 
-  for (const key of modelKeys) {
+  const timeoutMs = options.timeoutMs || REQUEST_TIMEOUT_MS;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await anthropic.messages.create({
+      model,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+      temperature: options.temperature ?? 0.3,
+      max_tokens: options.maxTokens ?? 8000,
+    }, {
+      signal: options.signal || controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    const content = response.content[0]?.type === 'text' ? response.content[0].text : '';
+
+    return {
+      content,
+      model: response.model,
+      api: 'messages',
+      provider: 'anthropic',
+    };
+  } catch (error) {
+    clearTimeout(timer);
+    throw error;
+  }
+}
+
+// ============================================================
+// 🔥 Determine Provider and Model List
+// ============================================================
+
+function getProviderModels(
+  request: GatewayRequest
+): Array<{ provider: 'openai' | 'anthropic'; modelKey: string; model: ModelCapability | null }> {
+  const models: Array<{ provider: 'openai' | 'anthropic'; modelKey: string; model: ModelCapability | null }> = [];
+
+  // ===== اگر provider مشخص شده =====
+  if (request.provider === 'openai') {
+    const keys = request.modelKey ? [request.modelKey] : ['gpt-4o', 'gpt-4o-mini'];
+    for (const key of keys) {
+      const model = getModelByKey(key);
+      if (model) {
+        models.push({ provider: 'openai', modelKey: key, model });
+      }
+    }
+    return models;
+  }
+
+  if (request.provider === 'anthropic') {
+    const keys = ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku'];
+    models.push(
+      ...keys.map((key) => ({
+        provider: 'anthropic' as const,
+        modelKey: key,
+        model: null,
+      }))
+    );
+    return models;
+  }
+
+  // ===== Auto =====
+  // ابتدا OpenAI
+  let openaiKeys: string[];
+  if (request.modelKey) {
+    openaiKeys = [request.modelKey];
+  } else if (request.role) {
+    const roleMap: Record<AdvancedModelRole, string[]> = {
+      primary: ['gpt-4o', 'gpt-4o-mini'],
+      codeFallback: ['gpt-4o-mini', 'gpt-4o'],
+      stableFallback: ['gpt-4o-mini'],
+    };
+    openaiKeys = roleMap[request.role] || ['gpt-4o', 'gpt-4o-mini'];
+  } else {
+    openaiKeys = ['gpt-4o', 'gpt-4o-mini'];
+  }
+
+  for (const key of openaiKeys) {
     const model = getModelByKey(key);
-    if (!model) continue;
-    const signature = `${model.model}|${model.api}`;
-    if (!seen.has(signature)) {
-      seen.add(signature);
-      result.push(key);
+    if (model) {
+      models.push({ provider: 'openai', modelKey: key, model });
     }
   }
-  return result;
+
+  // سپس Anthropic (فقط در صورتی که API Key موجود باشد)
+  if (anthropicApiKey) {
+    models.push(
+      { provider: 'anthropic', modelKey: 'claude-3-5-sonnet', model: null },
+      { provider: 'anthropic', modelKey: 'claude-3-haiku', model: null }
+    );
+  }
+
+  return models;
 }
 
 // ============================================================
@@ -360,44 +434,34 @@ export async function callLLM<T = unknown>(
   const rootRequestId = request.rootRequestId || request.requestId || randomUUID();
   const requestId = request.requestId || randomUUID();
 
-  // ===== Determine model keys to try =====
-  let modelKeys: string[];
+  const providerModels = getProviderModels(request);
 
-  if (request.modelKey) {
-    modelKeys = [request.modelKey];
-  } else if (request.role) {
-    const roleMap: Record<AdvancedModelRole, string[]> = {
-      primary: ['gpt-4o', 'gpt-4-turbo', 'gpt-4o-mini'],
-      codeFallback: ['gpt-4-turbo', 'gpt-4o-mini', 'gpt-4o'],
-      stableFallback: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'],
+  if (providerModels.length === 0) {
+    return {
+      success: false,
+      error: {
+        code: 'MODEL_UNAVAILABLE',
+        message: 'No models available. Check your API keys.',
+        retryable: false,
+        rootRequestId,
+      },
+      modelUsed: 'unknown',
+      modelKey: 'unknown',
+      api: 'unknown',
+      provider: 'openai',
+      attempt: 0,
+      durationMs: Date.now() - startTime,
     };
-    modelKeys = roleMap[request.role] || ['gpt-4o', 'gpt-4-turbo', 'gpt-4o-mini'];
-  } else {
-    modelKeys = ['gpt-4o', 'gpt-4-turbo', 'gpt-4o-mini'];
   }
 
-  // ===== Deduplicate =====
-  modelKeys = deduplicateModels(modelKeys);
-
-  // ===== اگر fallback غیرفعال است، فقط اولین مدل =====
-  if (request.disableFallback) {
-    modelKeys = modelKeys.slice(0, 1);
-  }
-
-  // ===== Deadline =====
-  const deadline = request.deadline || Date.now() + REQUEST_TIMEOUT_MS * 2; // 2x timeout
-  const minBudgetMs = 10000; // حداقل ۱۰ ثانیه برای هر تلاش
+  const deadline = request.deadline || Date.now() + REQUEST_TIMEOUT_MS * 2;
+  const minBudgetMs = 10000;
 
   let lastError: NormalizedLLMError | null = null;
   let attempts = 0;
-  let modelAttempts = 0;
 
-  for (const key of modelKeys) {
-    const model = getModelByKey(key);
-    if (!model) {
-      logger.warn(`[LLM Gateway] Model "${key}" not found in registry, skipping.`, { rootRequestId });
-      continue;
-    }
+  for (const entry of providerModels) {
+    const { provider, modelKey, model } = entry;
 
     let retryCount = 0;
     let shouldRetry = true;
@@ -409,7 +473,7 @@ export async function callLLM<T = unknown>(
           code: 'TIMEOUT',
           message: 'Pipeline time budget exhausted',
           retryable: false,
-          model: key,
+          model: modelKey,
           rootRequestId,
           attempt: attempts + 1,
         };
@@ -420,19 +484,34 @@ export async function callLLM<T = unknown>(
       attempts++;
 
       try {
-        const result = await executeModelCall(
-          model,
-          request.systemPrompt,
-          request.userPrompt,
-          {
-            temperature: request.temperature,
-            maxTokens: request.maxTokens,
-            responseFormat: request.responseFormat || 'json_object',
-            signal: undefined,
-            timeoutMs: attemptTimeout,
-            rootRequestId,
-          }
-        );
+        let result: { content: string; model: string; api: string; provider: 'openai' | 'anthropic' };
+
+        if (provider === 'openai' && model) {
+          result = await executeOpenAICall(
+            model,
+            request.systemPrompt,
+            request.userPrompt,
+            {
+              temperature: request.temperature,
+              maxTokens: request.maxTokens,
+              responseFormat: request.responseFormat || 'json_object',
+              timeoutMs: attemptTimeout,
+            }
+          );
+        } else if (provider === 'anthropic') {
+          result = await executeAnthropicCall(
+            modelKey,
+            request.systemPrompt,
+            request.userPrompt,
+            {
+              temperature: request.temperature,
+              maxTokens: request.maxTokens || 8000,
+              timeoutMs: attemptTimeout,
+            }
+          );
+        } else {
+          throw new Error(`Unsupported provider: ${provider}`);
+        }
 
         // ===== Zod Validation =====
         let parsedData: T | undefined;
@@ -448,14 +527,13 @@ export async function callLLM<T = unknown>(
                 code: 'SCHEMA_VALIDATION_FAILED',
                 message: 'Zod validation failed',
                 retryable: false,
-                model: key,
+                model: modelKey,
                 rootRequestId,
                 attempt: attempts,
                 cause: JSON.stringify(parsed.error.issues),
               };
             }
           } catch (parseError) {
-            // One repair attempt
             const jsonMatch = result.content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               try {
@@ -467,7 +545,7 @@ export async function callLLM<T = unknown>(
                     code: 'INVALID_RESPONSE',
                     message: 'Invalid JSON after repair',
                     retryable: false,
-                    model: key,
+                    model: modelKey,
                     rootRequestId,
                     attempt: attempts,
                   };
@@ -477,7 +555,7 @@ export async function callLLM<T = unknown>(
                   code: 'INVALID_RESPONSE',
                   message: 'Failed to repair JSON',
                   retryable: false,
-                  model: key,
+                  model: modelKey,
                   rootRequestId,
                   attempt: attempts,
                 };
@@ -487,7 +565,7 @@ export async function callLLM<T = unknown>(
                 code: 'INVALID_RESPONSE',
                 message: 'No JSON found in response',
                 retryable: false,
-                model: key,
+                model: modelKey,
                 rootRequestId,
                 attempt: attempts,
               };
@@ -499,16 +577,16 @@ export async function callLLM<T = unknown>(
 
         if (validationError) {
           lastError = validationError;
-          break; // try next model
+          break;
         }
 
         // ===== Success =====
         const durationMs = Date.now() - startTime;
         logger.info('[LLM Gateway] Request successful', {
           rootRequestId,
-          modelKey: key,
-          model: model.model,
-          api: model.api,
+          provider,
+          modelKey,
+          model: result.model,
           attempt: attempts,
           durationMs,
         });
@@ -516,22 +594,22 @@ export async function callLLM<T = unknown>(
         return {
           success: true,
           data: parsedData,
-          modelUsed: model.model,
-          modelKey: key,
-          api: model.api,
+          modelUsed: result.model,
+          modelKey,
+          api: result.api,
+          provider: result.provider,
           attempt: attempts,
           durationMs,
         };
       } catch (error) {
-        const normalized = classifyError(error, key, rootRequestId);
+        const normalized = classifyError(error, modelKey, rootRequestId, provider);
 
-        // ===== Retryable? =====
         if (normalized.retryable && retryCount < MAX_RETRIES && !request.disableFallback) {
           retryCount++;
           const delay = getBackoffDelay(retryCount);
-          logger.warn(`[LLM Gateway] Retryable error, retrying in ${delay}ms`, {
+          logger.warn(`[LLM Gateway] Retryable error on ${provider}, retrying in ${delay}ms`, {
             rootRequestId,
-            modelKey: key,
+            modelKey,
             attempt: attempts,
             retryCount,
             errorCode: normalized.code,
@@ -540,50 +618,36 @@ export async function callLLM<T = unknown>(
           continue;
         }
 
-        // ===== Non-retryable or max retries =====
         lastError = normalized;
 
-        // ===== Model-specific error → try next model =====
-        if (normalized.code === 'MODEL_UNAVAILABLE' || normalized.code === 'UNSUPPORTED_PARAMETER') {
-          logger.warn(`[LLM Gateway] Model-specific error, trying next model`, {
-            rootRequestId,
-            modelKey: key,
-            errorCode: normalized.code,
-          });
-          break; // exit retry loop, move to next model
-        }
-
-        // ===== Authentication error → fail immediately =====
         if (normalized.code === 'AUTHENTICATION_ERROR') {
-          logger.error('[LLM Gateway] Authentication error, aborting', {
+          logger.error(`[LLM Gateway] Authentication error on ${provider}, aborting`, {
             rootRequestId,
-            modelKey: key,
+            modelKey,
           });
           break;
         }
 
-        // ===== Non-retryable → try next model =====
         if (!normalized.retryable) {
           break;
         }
 
-        // ===== Retryable but max retries exceeded → try next model =====
         break;
       }
     }
   }
 
-  // ===== All models failed =====
+  // ===== All providers failed =====
   const durationMs = Date.now() - startTime;
   const finalError = lastError || {
     code: 'UNKNOWN',
-    message: 'All models failed',
+    message: 'All providers failed',
     retryable: false,
     rootRequestId,
     attempt: attempts,
   };
 
-  logger.error('[LLM Gateway] All models failed', {
+  logger.error('[LLM Gateway] All providers failed', {
     rootRequestId,
     attempts,
     durationMs,
@@ -597,6 +661,7 @@ export async function callLLM<T = unknown>(
     modelUsed: 'unknown',
     modelKey: 'unknown',
     api: 'unknown',
+    provider: 'openai',
     attempt: attempts,
     durationMs,
   };
@@ -620,6 +685,7 @@ export async function callLLMJson<T>(
     metadata?: Record<string, unknown>;
     disableFallback?: boolean;
     deadline?: number;
+    provider?: 'openai' | 'anthropic' | 'auto';
   }
 ): Promise<GatewayResult<T>> {
   return callLLM<T>({
@@ -635,6 +701,7 @@ export async function callLLMJson<T>(
     metadata: options.metadata,
     disableFallback: options.disableFallback,
     deadline: options.deadline,
+    provider: options.provider,
     responseFormat: 'json_object',
   });
 }

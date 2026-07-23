@@ -11,11 +11,12 @@ export interface AnalysisConfig {
 export const ANALYSIS_CONFIG: AnalysisConfig = {
   concurrencyThreshold: 5,
   maxLinesForAnalysis: 500,
-  maxRepairPasses: 1,
+  maxRepairPasses: 2,
   schemaVersion: '1.0',
   scoreRange: { min: 0, max: 10 },
 };
 
+// 🔥 اضافه کردن وزن‌های جدید برای سیگنال‌های AST
 export const SIGNAL_WEIGHTS: Record<string, number> = {
   EXECUTOR: 3,
   THREAD_POOL: 3,
@@ -34,4 +35,14 @@ export const SIGNAL_WEIGHTS: Record<string, number> = {
   PROMISE: 2,
   WORKER_THREAD: 3,
   MUTEX: 3,
+  // ===== سیگنال‌های جدید برای AST =====
+  ASYNC_FUNCTION: 2,
+  AWAIT: 2,
+  PROMISE_ALL: 2,
+  PROMISE_RACE: 2,
+  PROMISE_ANY: 2,
+  PROMISE_ALLSETTLED: 2,
+  SETTIMEOUT: 1,
+  SETINTERVAL: 1,
+  WORKER: 3,
 };

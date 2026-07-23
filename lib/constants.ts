@@ -8,7 +8,7 @@
  * حداکثر خطوط مجاز برای تحلیل کد (Generate)
  * - Simple, Medium, Advanced modes
  */
-export const MAX_LINES_GENERATE = 500;
+export const MAX_LINES_GENERATE = 1000;
 
 /**
  * حداکثر خطوط مجاز برای توضیح خط به خط (Line-by-Line)

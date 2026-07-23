@@ -26,6 +26,7 @@ import path from 'path';
 // ============================================================
 
 const MAX_REPAIR_ATTEMPTS = ANALYSIS_CONFIG.maxRepairPasses;
+const PIPELINE_DEADLINE_MS = parseInt(process.env.PIPELINE_DEADLINE_MS || '180000', 10); // 3 دقیقه
 
 // ============================================================
 // HELPER: SAFE JSON EXTRACTION
@@ -51,7 +52,7 @@ function extractJSON(text: string): string {
 }
 
 // ============================================================
-// HELPER: FINALIZE AUDIT CANDIDATE (SINGLE ZOD GATE)
+// HELPER: FINALIZE AUDIT CANDIDATE
 // ============================================================
 
 function finalizeAuditCandidate(
@@ -104,10 +105,17 @@ async function attemptRepairWithBudget(
   language: string,
   auditType: AuditType,
   attemptNumber: number,
-  maxAttempts: number
+  maxAttempts: number,
+  deadline: number
 ): Promise<AdvancedAuditResult | null> {
   if (attemptNumber >= maxAttempts) {
     logger.warn(`[Pipeline] Repair budget exhausted (${attemptNumber}/${maxAttempts})`);
+    return null;
+  }
+
+  // ===== بررسی Deadline =====
+  if (Date.now() > deadline) {
+    logger.warn('[Pipeline] Deadline reached during repair');
     return null;
   }
 
@@ -143,7 +151,7 @@ async function attemptRepairWithBudget(
 }
 
 // ============================================================
-// MAIN PIPELINE
+// MAIN PIPELINE (با Deadline)
 // ============================================================
 
 export interface PipelineResult {
@@ -171,6 +179,7 @@ export async function runAdvancedPipeline(
   language: string
 ): Promise<PipelineResult> {
   const startTime = Date.now();
+  const deadline = startTime + PIPELINE_DEADLINE_MS;
   const stages: { name: string; durationMs: number; data?: unknown }[] = [];
 
   try {
@@ -189,12 +198,33 @@ export async function runAdvancedPipeline(
     }
     stages.push({ name: 'input_validation', durationMs: Date.now() - stageStart });
 
+    // ===== بررسی Deadline =====
+    if (Date.now() > deadline) {
+      logger.warn('[Pipeline] Deadline reached at input validation');
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: 'Pipeline deadline exceeded',
+        trace: { stages },
+      };
+    }
+
     const numberedCode = addLineNumbers(code);
 
     // ===== 2. Concurrency detection =====
     const stageStart2 = Date.now();
     const detectorResult: DetectorResult = detectConcurrencySignals(code, language);
     stages.push({ name: 'detect_concurrency', durationMs: Date.now() - stageStart2, data: detectorResult });
+
+    if (Date.now() > deadline) {
+      logger.warn('[Pipeline] Deadline reached after concurrency detection');
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: 'Pipeline deadline exceeded',
+        trace: { stages },
+      };
+    }
 
     // ===== 3. Select audit strategy =====
     const stageStart3 = Date.now();
@@ -212,9 +242,7 @@ export async function runAdvancedPipeline(
     }
     stages.push({ name: 'select_strategy', durationMs: Date.now() - stageStart3, data: { auditType } });
 
-    // ============================================================
-    // 📁 SAVE PROMPT TO FILE (Only in development environment)
-    // ============================================================
+    // ===== Save prompt in development =====
     if (process.env.NODE_ENV === 'development') {
       try {
         const debugDir = path.join(process.cwd(), 'debug');
@@ -257,15 +285,28 @@ export async function runAdvancedPipeline(
       }
     }
 
+    if (Date.now() > deadline) {
+      logger.warn('[Pipeline] Deadline reached before AI call');
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: 'Pipeline deadline exceeded',
+        trace: { stages },
+      };
+    }
+
     // ===== 4. First AI call =====
     const stageStart4 = Date.now();
     const systemPrompt = 'You are an expert code auditor. Return ONLY valid JSON. Do not use Markdown fences. Do not include any text before or after the JSON.';
 
     let rawContent: string;
     try {
+      // ===== ارسال deadline به callOpenAI =====
+      const remainingMs = deadline - Date.now();
       rawContent = await callOpenAI(systemPrompt, prompt, {
         mode: 'advanced',
         responseFormat: 'text',
+        timeout: Math.min(remainingMs - 5000, 90000),
       });
     } catch (aiError) {
       logger.error('[Pipeline] AI call failed:', aiError);
@@ -279,9 +320,7 @@ export async function runAdvancedPipeline(
     }
     stages.push({ name: 'ai_call', durationMs: Date.now() - stageStart4 });
 
-    // ============================================================
-    // 📁 SAVE RAW OPENAI RESPONSE TO FILE (Development only)
-    // ============================================================
+    // ===== Save raw response in development =====
     if (process.env.NODE_ENV === 'development') {
       try {
         const debugDir = path.join(process.cwd(), 'debug');
@@ -307,41 +346,52 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ============================================================
-    // 🔥 STEP: Normalize the raw AI output BEFORE Zod validation
-    // ============================================================
+    if (Date.now() > deadline) {
+      logger.warn('[Pipeline] Deadline reached after AI call');
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: 'Pipeline deadline exceeded',
+        trace: { stages },
+      };
+    }
+
+    // ===== 5. Normalize =====
     let normalizedData: AdvancedAuditResult | null = null;
     let normalizationError: string | null = null;
     let jsonString: string | null = null;
 
     try {
-      // 1. Extract JSON from raw response
       jsonString = extractJSON(rawContent);
       if (!jsonString) {
         throw new Error('Failed to extract JSON from AI response');
       }
 
-      // 2. Parse JSON
       const parsed = JSON.parse(jsonString);
-
-      // 3. Normalize the parsed data (fills missing fields with defaults)
       normalizedData = normalizeAnalysisOutput(parsed);
     } catch (normError) {
       normalizationError = normError instanceof Error ? normError.message : 'Normalization failed';
       logger.warn('[Pipeline] Normalization failed:', normError);
     }
 
-    // ===== If normalization succeeded =====
+    if (Date.now() > deadline) {
+      logger.warn('[Pipeline] Deadline reached during normalization');
+      return {
+        result: null,
+        status: 'failed_validation',
+        error: 'Pipeline deadline exceeded',
+        trace: { stages },
+      };
+    }
+
+    // ===== 6. Validation & Repair =====
     if (normalizedData) {
-      // Validate the normalized data with Zod
       const zodResult = AdvancedAuditResultSchema.safeParse(normalizedData);
       if (zodResult.success) {
         stages.push({ name: 'normalization_success', durationMs: Date.now() - stageStart4 });
 
-        // ===== Initial validation on normalized data =====
         let initialValidation = validateSemanticCompleteness(zodResult.data, detectorResult, code);
 
-        // ===== Repair loop (structured) =====
         let lastCandidate = zodResult.data;
         let lastValidation = initialValidation;
         let repairAttempts = 0;
@@ -350,6 +400,11 @@ export async function runAdvancedPipeline(
         let finalValidation = initialValidation;
 
         while (lastValidation.repairRequired && repairAttempts < MAX_REPAIR_ATTEMPTS) {
+          if (Date.now() > deadline) {
+            logger.warn('[Pipeline] Deadline reached during repair loop');
+            break;
+          }
+
           const stageStartRepair = Date.now();
           logger.info(`[Pipeline] Repair attempt ${repairAttempts + 1} triggered`);
           const repaired = await attemptRepairWithBudget(
@@ -359,7 +414,8 @@ export async function runAdvancedPipeline(
             language,
             auditType,
             repairAttempts,
-            MAX_REPAIR_ATTEMPTS
+            MAX_REPAIR_ATTEMPTS,
+            deadline
           );
 
           if (repaired) {
@@ -388,7 +444,6 @@ export async function runAdvancedPipeline(
           repairAttempts++;
         }
 
-        // ===== Determine final outcome =====
         if (finalValidation.structurallyValid) {
           const status: AuditStatus = wasRepaired ? 'repaired' : 'complete';
           const finalizeResult = finalizeAuditCandidate(finalCandidate, {
@@ -423,8 +478,7 @@ export async function runAdvancedPipeline(
         }
       } else {
         logger.warn('[Pipeline] Zod validation failed even after normalization:', zodResult.error.issues);
-        // Try repair if normalization produced invalid data
-        if (MAX_REPAIR_ATTEMPTS > 0) {
+        if (MAX_REPAIR_ATTEMPTS > 0 && Date.now() < deadline) {
           const repairResult = await attemptRepairWithBudget(
             numberedCode,
             normalizedData,
@@ -443,7 +497,8 @@ export async function runAdvancedPipeline(
             language,
             auditType,
             0,
-            MAX_REPAIR_ATTEMPTS
+            MAX_REPAIR_ATTEMPTS,
+            deadline
           );
           if (repairResult) {
             stages.push({ name: 'repair_success_after_normalization', durationMs: Date.now() - stageStart4 });
@@ -457,8 +512,8 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ===== If normalization failed, try repair from raw parsed data =====
-    if (MAX_REPAIR_ATTEMPTS > 0 && jsonString) {
+    // ===== 7. Final fallback =====
+    if (MAX_REPAIR_ATTEMPTS > 0 && jsonString && Date.now() < deadline) {
       try {
         const parsed = JSON.parse(jsonString);
         const repairResult = await attemptRepairWithBudget(
@@ -481,7 +536,8 @@ export async function runAdvancedPipeline(
           language,
           auditType,
           0,
-          MAX_REPAIR_ATTEMPTS
+          MAX_REPAIR_ATTEMPTS,
+          deadline
         );
         if (repairResult) {
           stages.push({ name: 'repair_success_after_normalization_failure', durationMs: Date.now() - stageStart4 });
@@ -496,7 +552,7 @@ export async function runAdvancedPipeline(
       }
     }
 
-    // ===== All normalization and repair attempts failed =====
+    // ===== 8. All failed =====
     logger.error('[Pipeline] Failed to obtain valid audit result');
     return {
       result: null,

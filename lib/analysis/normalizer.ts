@@ -9,6 +9,7 @@ import {
   AuditStatusSchema,
   VerdictStatusSchema,
 } from './schema';
+import logger from '@/lib/logger';
 
 // ============================================================
 // Type Guards & Helpers
@@ -48,7 +49,7 @@ function sanitizeEnum<T extends string>(
 }
 
 // ============================================================
-// Score normalization: consistent with prompt (0–100)
+// Score normalization
 // ============================================================
 
 function normalizeScore(value: unknown, fallback: number = 0): number {
@@ -64,12 +65,7 @@ function normalizeScore(value: unknown, fallback: number = 0): number {
   return fallback;
 }
 
-// ============================================================
-// Normalize Score Item (new structure)
-// ============================================================
-
 function normalizeScoreItem(value: unknown, fallback: number = 0): ScoreItem {
-  // If value is already an object with score, reason, relatedFindings
   if (isObject(value)) {
     const score = normalizeScore(value.score, fallback);
     const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
@@ -78,7 +74,6 @@ function normalizeScoreItem(value: unknown, fallback: number = 0): ScoreItem {
       : [];
     return { score, reason, relatedFindings };
   }
-  // Otherwise, extract only the numeric score
   return {
     score: normalizeScore(value, fallback),
     reason: '',
@@ -87,10 +82,13 @@ function normalizeScoreItem(value: unknown, fallback: number = 0): ScoreItem {
 }
 
 // ============================================================
-// Main Normalizer
+// Main Normalizer (با لاگ‌گیری)
 // ============================================================
 
 export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
+  const startTime = Date.now();
+  logger.debug('[Normalizer] Starting normalization');
+
   const input = getSafeObject(raw);
 
   // --- 1. Findings ---
@@ -102,7 +100,6 @@ export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
     (isObject(input.analysis) ? input.analysis.findings : undefined);
 
   const findingsArray = getSafeArray<unknown>(findingsSource, []);
-
   const usedIds = new Set<string>();
 
   const normalizedFindings: AuditFinding[] = findingsArray
@@ -194,7 +191,7 @@ export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
     resourceLifecycle: getStringArray(overviewSource.resourceLifecycle) || [],
   };
 
-  // --- 3. Scorecard (normalize to new ScoreItem structure) ---
+  // --- 3. Scorecard ---
   const scorecardSource = getSafeObject(
     input.scorecard_new ?? input.scorecardLegacy ?? input.scorecard ?? {}
   );
@@ -293,7 +290,6 @@ export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
   const summary = getSafeString(input.summary, getSafeString(input.highLevelSummary, ''));
   const schemaVersion: '1.0' = '1.0';
 
-  // --- 9. Improved Code ---
   const improvedCodeSource = getSafeObject(input.improvedCode, {});
   const improvedCode = {
     available: typeof improvedCodeSource.available === 'boolean' ? improvedCodeSource.available : false,
@@ -301,7 +297,7 @@ export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
     notes: typeof improvedCodeSource.notes === 'string' ? improvedCodeSource.notes : '',
   };
 
-  return {
+  const result: AdvancedAuditResult = {
     schemaVersion,
     auditType,
     status,
@@ -319,4 +315,9 @@ export function normalizeAnalysisOutput(raw: unknown): AdvancedAuditResult {
     improvedCode,
     linkedin_post: linkedinPost,
   };
+
+  const duration = Date.now() - startTime;
+  logger.debug('[Normalizer] Completed in', duration, 'ms, findings:', normalizedFindings.length);
+
+  return result;
 }

@@ -15,7 +15,58 @@ import { getLineCount, isValidLineRange, getLineContent } from './numberedCode';
 import logger from '@/lib/logger';
 
 // ============================================================
-// VALIDATION: Evidence lines
+// 🔥 تابع تشابه (Levenshtein Distance ساده‌شده)
+// ============================================================
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b[i - 1] === a[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function similarityScore(a: string, b: string): number {
+  if (a.length === 0 && b.length === 0) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+  const dist = levenshteinDistance(a, b);
+  const maxLen = Math.max(a.length, b.length);
+  return 1 - dist / maxLen;
+}
+
+function isSimilarEnough(a: string, b: string, threshold: number = 0.7): boolean {
+  // حذف فاصله‌ها و کاراکترهای اضافی برای مقایسه بهتر
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const normA = normalize(a);
+  const normB = normalize(b);
+  if (normA === normB) return true;
+  const score = similarityScore(normA, normB);
+  return score >= threshold;
+}
+
+// ============================================================
+// VALIDATION: Evidence lines (اصلاح‌شده با تشابه)
 // ============================================================
 
 function validateEvidenceLines(
@@ -25,7 +76,6 @@ function validateEvidenceLines(
   const issues: ValidationIssue[] = [];
   const totalLines = getLineCount(code);
 
-  // Only proceed if result is a plain object and has findings
   if (!result || typeof result !== 'object' || Array.isArray(result)) {
     return issues;
   }
@@ -71,15 +121,14 @@ function validateEvidenceLines(
       const actualCode = getLineContent(code, startLine, endLine);
       const evidenceCode = ev?.code ?? '';
       if (actualCode && evidenceCode.trim()) {
-        const normalizedActual = actualCode.replace(/\s+/g, ' ').trim();
-        const normalizedEvidence = evidenceCode.replace(/\s+/g, ' ').trim();
-        if (!normalizedActual.includes(normalizedEvidence) && !normalizedEvidence.includes(normalizedActual)) {
+        // 🔥 استفاده از تشابه به جای تطابق دقیق
+        if (!isSimilarEnough(actualCode, evidenceCode, 0.7)) {
           issues.push({
             code: 'EVIDENCE_CODE_MISMATCH',
-            severity: 'warning',
-            message: `Evidence code does not appear to match the actual source at lines ${startLine}-${endLine}`,
+            severity: 'warning', // کاهش severity به warning
+            message: `Evidence code does not appear to match the actual source at lines ${startLine}-${endLine}. Similarity score: ${Math.round(similarityScore(actualCode, evidenceCode) * 100)}%`,
             relatedLines: [startLine, endLine],
-            expectedCoverage: 'Evidence code should be a snippet from the source',
+            expectedCoverage: 'Evidence code should be a snippet from the source (with tolerance)',
           });
         }
       }
@@ -233,7 +282,6 @@ function validateScorecard(result: unknown): ValidationIssue[] {
   const scorecard = (result as any).scorecard;
   if (!scorecard || typeof scorecard !== 'object') return issues;
 
-  // We only validate if scorecard is a plain object (not the old primitive)
   for (const [key, value] of Object.entries(scorecard)) {
     if (value && typeof value === 'object') {
       const score = (value as any).score;
@@ -404,11 +452,6 @@ export function validateSemanticCompleteness(
 ): AuditValidationResult {
   const allIssues: ValidationIssue[] = [];
 
-  // Structural validation already performed by Zod, but we still run
-  // semantic validations on the already-validated object.
-  // We assume result is AdvancedAuditResult at this point.
-  // We'll still handle it as unknown to be safe.
-
   try {
     const evidenceIssues = validateEvidenceLines(result, code);
     allIssues.push(...evidenceIssues);
@@ -507,7 +550,7 @@ export function validateSemanticCompleteness(
     });
   }
 
-  const structurallyValid = true; // Zod already verified structural validity
+  const structurallyValid = true;
   const semanticallyComplete =
     !allIssues.some((i) => i.severity === 'error' && i.code !== 'EVIDENCE_LINE_OUT_OF_RANGE');
 

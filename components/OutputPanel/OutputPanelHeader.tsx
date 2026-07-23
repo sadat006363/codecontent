@@ -14,6 +14,7 @@ const tabs: { id: TabType; label: string; icon: string }[] = [
   { id: 'line-by-line', label: 'Line by Line', icon: '📝' },
   { id: 'prompt', label: 'Prompt', icon: '📝' },
   { id: 'all-outputs', label: 'All Outputs', icon: '📊' },
+  { id: 'monitoring', label: 'Monitoring', icon: '📊' }, // 🔥 NEW
 ];
 
 export default function OutputPanelHeader({ 

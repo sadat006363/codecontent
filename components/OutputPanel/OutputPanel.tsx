@@ -15,6 +15,7 @@ import AnalysisTab from './tabs/AnalysisTab';
 import LineByLineTab from './tabs/LineByLineTab';
 import PromptTab from './tabs/PromptTab';
 import AllOutputsTab from './tabs/AllOutputsTab';
+import MonitoringTab from './tabs/MonitoringTab'; // 🔥 NEW
 import { useAppContext } from '@/context';
 
 export interface OutputPanelProps {
@@ -27,7 +28,15 @@ export interface OutputPanelProps {
   showToast: (message: string) => void;
 }
 
-export type TabType = 'explanation' | 'linkedin' | 'preview' | 'analysis' | 'line-by-line' | 'prompt' | 'all-outputs';
+export type TabType = 
+  | 'explanation' 
+  | 'linkedin' 
+  | 'preview' 
+  | 'analysis' 
+  | 'line-by-line' 
+  | 'prompt' 
+  | 'all-outputs'
+  | 'monitoring'; // 🔥 NEW
 
 const safeString = (value: unknown): string => {
   if (value === null || value === undefined) return '';
@@ -111,9 +120,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       },
     }));
 
-    // ============================================================
-    // 🔥 تغییر خودکار تب
-    // ============================================================
+    // ===== Auto-switch tabs =====
     useEffect(() => {
       if (isExplaining) {
         setActiveTab('line-by-line');
@@ -126,9 +133,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [isGeneratingPrompt]);
 
-    // ============================================================
-    // 🔥 آپلود تصویر کارت
-    // ============================================================
+    // ===== Upload card image =====
     const handleUploadImage = useCallback(async () => {
       if (!snippet?.slug || !cardImageDataUrl) {
         internalShowToast('❌ No image to upload');
@@ -164,9 +169,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, cardImageDataUrl, internalShowToast]);
 
-    // ============================================================
-    // 🔥 آپلود آواتار
-    // ============================================================
+    // ===== Upload avatar =====
     const handleUploadAvatar = useCallback(async (file: File) => {
       if (!snippet?.slug) {
         internalShowToast('❌ No snippet available');
@@ -190,7 +193,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           if (onAvatarChange) {
             onAvatarChange(data.avatarUrl);
           }
-          // همچنین در Context ذخیره کنیم
           dispatch({ type: 'SET_AVATAR', payload: data.avatarUrl });
           internalShowToast('✅ Avatar uploaded successfully!');
         } else {
@@ -206,9 +208,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, onAvatarChange, dispatch, internalShowToast]);
 
-    // ============================================================
-    // 🔥 به‌روزرسانی دیتابیس
-    // ============================================================
+    // ===== Update database =====
     const updateSnippetInDatabase = useCallback(async (username: string, githubUsername: string) => {
       if (!snippet || !snippet.slug) return;
 
@@ -237,7 +237,6 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
           onSnippetUpdate({ username, github_username: githubUsername });
         }
 
-        // به‌روزرسانی Context
         dispatch({ type: 'SET_USERNAME', payload: username });
         dispatch({ type: 'SET_GITHUB_USERNAME', payload: githubUsername });
 
@@ -253,9 +252,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, onSnippetUpdate, dispatch, internalShowToast]);
 
-    // ============================================================
-    // 🔥 تولید تصویر کارت
-    // ============================================================
+    // ===== Generate card image =====
     const generateCardImage = useCallback(async (): Promise<string> => {
       if (!cardRef.current) {
         throw new Error('Card element not found');
@@ -279,9 +276,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, []);
 
-    // ============================================================
-    // 🔥 دانلود کارت
-    // ============================================================
+    // ===== Download card =====
     const downloadCard = useCallback(async () => {
       if (isDownloading.current) {
         return;
@@ -326,9 +321,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, cardImageDataUrl, generateCardImage, internalShowToast]);
 
-    // ============================================================
-    // 🔥 به‌روزرسانی کارت
-    // ============================================================
+    // ===== Update card =====
     const updateCardImage = useCallback(async () => {
       if (!snippet || activeTab !== 'preview' || isUpdatingCard.current) return;
 
@@ -365,9 +358,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [snippet, activeTab, generateCardImage, tempUsername, tempGithubUsername, onUsernameChange, onGithubChange, updateSnippetInDatabase, internalShowToast]);
 
-    // ============================================================
-    // 🔥 بارگذاری اولیه کارت
-    // ============================================================
+    // ===== Initial card load =====
     useEffect(() => {
       if (snippet && activeTab === 'preview' && isFirstRender.current) {
         isFirstRender.current = false;
@@ -416,9 +407,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       }
     }, [showUsernameInput, displayUsername, displayGithubUsername]);
 
-    // ============================================================
-    // 🔥 کپی و دانلود تحلیل پیشرفته
-    // ============================================================
+    // ===== Copy & Download Full Analysis =====
     const copyFullAnalysisNew = useCallback(() => {
       if (!fullAnalysis || !isAdvanced) {
         internalShowToast('❌ No analysis to copy');
@@ -706,9 +695,7 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
     const cardPageUrl = snippet?.slug ? `${appUrl}/snippet/${snippet.slug}/card?theme=${selectedTheme}` : '';
     const quickAnalysisText = !isAdvanced && fullAnalysis?.analysis ? fullAnalysis.analysis : null;
 
-    // ============================================================
-    // 🔥 استفاده از Skeleton Loader به جای LoadingState
-    // ============================================================
+    // ===== Loading =====
     if (loading) {
       return <SkeletonLoader />;
     }
@@ -717,6 +704,9 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
       return <EmptyState />;
     }
 
+    // ============================================================
+    // 🔥 RENDER
+    // ============================================================
     return (
       <div className="flex flex-col h-full bg-white rounded-xl border-2 border-[#d0d0d8] overflow-hidden relative shadow-sm">
         {toastMessage && (
@@ -836,6 +826,11 @@ const OutputPanel = forwardRef<{ setActiveTab: (tab: TabType) => void }, OutputP
               showToast={internalShowToast}
               appUrl={appUrl}
             />
+          )}
+
+          {/* 🔥 NEW: Monitoring Tab */}
+          {activeTab === 'monitoring' && (
+            <MonitoringTab />
           )}
         </div>
       </div>

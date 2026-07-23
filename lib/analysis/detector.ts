@@ -2,9 +2,18 @@
 
 import { ANALYSIS_CONFIG, SIGNAL_WEIGHTS } from './analysis.config';
 import { DetectorResult, DetectorSignal } from './types';
+import logger from '@/lib/logger';
 
 // ============================================================
-// 🔥 سیگنال‌های هم‌روندی بر اساس زبان
+// 🔥 AST Parser (برای JavaScript و TypeScript)
+// ============================================================
+
+import * as parser from '@babel/parser';
+import traverse from '@babel/traverse';
+import * as t from '@babel/types';
+
+// ============================================================
+// 🔥 سیگنال‌های هم‌روندی بر اساس زبان (Regex برای زبان‌های دیگر)
 // ============================================================
 
 const CONCURRENCY_SIGNALS: Record<string, Array<{ pattern: RegExp; type: string }>> = {
@@ -38,51 +47,180 @@ const CONCURRENCY_SIGNALS: Record<string, Array<{ pattern: RegExp; type: string 
     { pattern: /\.sleep\s*\(/, type: 'SLEEP' },
     { pattern: /\.parallelStream\s*\(/, type: 'PARALLEL_STREAM' },
   ],
-  javascript: [
-    { pattern: /\bPromise\b/, type: 'PROMISE' },
-    { pattern: /\basync\b/, type: 'ASYNC_AWAIT' },
-    { pattern: /\bawait\b/, type: 'ASYNC_AWAIT' },
-    { pattern: /\bWorker\b/, type: 'WORKER_THREAD' },
-    { pattern: /\bSharedArrayBuffer\b/, type: 'SHARED_STATE' },
+  python: [
+    { pattern: /\bthreading\b/, type: 'THREADING' },
+    { pattern: /\bmultiprocessing\b/, type: 'MULTIPROCESSING' },
+    { pattern: /\basyncio\b/, type: 'ASYNC' },
+    { pattern: /\bawait\b/, type: 'AWAIT' },
+    { pattern: /\basync\s+def\b/, type: 'ASYNC_DEF' },
   ],
-  typescript: [
-    { pattern: /\bPromise\b/, type: 'PROMISE' },
-    { pattern: /\basync\b/, type: 'ASYNC_AWAIT' },
-    { pattern: /\bawait\b/, type: 'ASYNC_AWAIT' },
-    { pattern: /\bWorker\b/, type: 'WORKER_THREAD' },
-  ],
+  // زبان‌های دیگر با Regex
 };
 
 // ============================================================
-// 🔥 توابع کمکی
+// 🔥 تشخیص با AST برای JavaScript/TypeScript
 // ============================================================
 
-function getLanguageSignals(language: string): Array<{ pattern: RegExp; type: string }> {
-  const normalized = language.toLowerCase();
-  if (normalized.includes('java')) return CONCURRENCY_SIGNALS.java;
-  if (normalized.includes('javascript') || normalized.includes('js')) return CONCURRENCY_SIGNALS.javascript;
-  if (normalized.includes('typescript') || normalized.includes('ts')) return CONCURRENCY_SIGNALS.typescript;
-  return CONCURRENCY_SIGNALS.java;
-}
-
-function getLineForMatch(code: string, matchIndex: number): number {
-  const before = code.substring(0, matchIndex);
-  return before.split('\n').length;
-}
-
-// ============================================================
-// 🔥 تابع اصلی تشخیص سیگنال‌های هم‌روندی
-// ============================================================
-
-export function detectConcurrencySignals(
-  code: string,
-  language: string
-): DetectorResult {
+function detectWithAST(code: string, language: string): DetectorSignal[] {
   const signals: DetectorSignal[] = [];
-  const signalPatterns = getLanguageSignals(language);
   const seen = new Set<string>();
 
-  for (const { pattern, type } of signalPatterns) {
+  // فقط برای JavaScript و TypeScript از AST استفاده می‌کنیم
+  const isJsTs = ['javascript', 'typescript', 'js', 'ts'].includes(language.toLowerCase());
+
+  if (!isJsTs) {
+    logger.debug('[Detector] AST not supported for language:', language);
+    return signals;
+  }
+
+  try {
+    const ast = parser.parse(code, {
+      sourceType: 'module',
+      plugins: ['typescript', 'jsx'],
+      errorRecovery: true,
+    });
+
+    traverse(ast, {
+      // ===== تشخیص async/await =====
+      Function(path) {
+        if (path.node.async) {
+          const line = path.node.loc?.start.line || 0;
+          const key = `ASYNC_FUNCTION-${line}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            signals.push({
+              type: 'ASYNC_FUNCTION',
+              value: 'async function',
+              line,
+              weight: SIGNAL_WEIGHTS.ASYNC_AWAIT || 2,
+            });
+          }
+        }
+      },
+
+      // ===== تشخیص await =====
+      AwaitExpression(path) {
+        const line = path.node.loc?.start.line || 0;
+        const key = `AWAIT-${line}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          signals.push({
+            type: 'AWAIT',
+            value: 'await',
+            line,
+            weight: SIGNAL_WEIGHTS.ASYNC_AWAIT || 2,
+          });
+        }
+      },
+
+      // ===== تشخیص Promise =====
+      NewExpression(path) {
+        if (t.isIdentifier(path.node.callee) && path.node.callee.name === 'Promise') {
+          const line = path.node.loc?.start.line || 0;
+          const key = `PROMISE-${line}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            signals.push({
+              type: 'PROMISE',
+              value: 'new Promise()',
+              line,
+              weight: SIGNAL_WEIGHTS.PROMISE || 2,
+            });
+          }
+        }
+      },
+
+      // ===== تشخیص Worker =====
+      NewExpression(path) {
+        if (t.isIdentifier(path.node.callee) && path.node.callee.name === 'Worker') {
+          const line = path.node.loc?.start.line || 0;
+          const key = `WORKER-${line}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            signals.push({
+              type: 'WORKER',
+              value: 'new Worker()',
+              line,
+              weight: SIGNAL_WEIGHTS.WORKER_THREAD || 3,
+            });
+          }
+        }
+      },
+
+      // ===== تشخیص setTimeout/setInterval =====
+      CallExpression(path) {
+        if (t.isIdentifier(path.node.callee)) {
+          const name = path.node.callee.name;
+          if (name === 'setTimeout' || name === 'setInterval') {
+            const line = path.node.loc?.start.line || 0;
+            const key = `${name}-${line}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              signals.push({
+                type: name.toUpperCase(),
+                value: name + '()',
+                line,
+                weight: 1,
+              });
+            }
+          }
+        }
+      },
+
+      // ===== تشخیص Promise.all / Promise.race =====
+      MemberExpression(path) {
+        if (t.isIdentifier(path.node.object) && path.node.object.name === 'Promise') {
+          if (t.isIdentifier(path.node.property)) {
+            const prop = path.node.property.name;
+            if (prop === 'all' || prop === 'race' || prop === 'any' || prop === 'allSettled') {
+              const line = path.node.loc?.start.line || 0;
+              const key = `Promise.${prop}-${line}`;
+              if (!seen.has(key)) {
+                seen.add(key);
+                signals.push({
+                  type: `PROMISE_${prop.toUpperCase()}`,
+                  value: `Promise.${prop}()`,
+                  line,
+                  weight: 2,
+                });
+              }
+            }
+          }
+        }
+      },
+    });
+
+    logger.debug('[Detector] AST detection found', signals.length, 'signals');
+  } catch (error) {
+    logger.error('[Detector] AST parsing failed, falling back to regex:', error);
+    // در صورت خطا، به Regex برگردیم
+  }
+
+  return signals;
+}
+
+// ============================================================
+// 🔥 تشخیص با Regex (برای سایر زبان‌ها)
+// ============================================================
+
+function detectWithRegex(code: string, language: string): DetectorSignal[] {
+  const signals: DetectorSignal[] = [];
+  const normalized = language.toLowerCase();
+  let patterns: Array<{ pattern: RegExp; type: string }> = [];
+
+  if (normalized.includes('java')) {
+    patterns = CONCURRENCY_SIGNALS.java;
+  } else if (normalized.includes('python')) {
+    patterns = CONCURRENCY_SIGNALS.python;
+  } else {
+    // زبان‌های دیگر از یک مجموعه عمومی استفاده می‌کنند
+    patterns = CONCURRENCY_SIGNALS.java; // fallback
+    logger.debug('[Detector] Using fallback regex patterns for language:', language);
+  }
+
+  const seen = new Set<string>();
+
+  for (const { pattern, type } of patterns) {
     let match;
     const regex = new RegExp(pattern, 'g');
     while ((match = regex.exec(code)) !== null) {
@@ -101,6 +239,43 @@ export function detectConcurrencySignals(
     }
   }
 
+  return signals;
+}
+
+// ============================================================
+// 🔥 توابع کمکی
+// ============================================================
+
+function getLineForMatch(code: string, matchIndex: number): number {
+  const before = code.substring(0, matchIndex);
+  return before.split('\n').length;
+}
+
+// ============================================================
+// 🔥 تابع اصلی تشخیص سیگنال‌های هم‌روندی (با لاگ‌گیری)
+// ============================================================
+
+export function detectConcurrencySignals(
+  code: string,
+  language: string
+): DetectorResult {
+  const startTime = Date.now();
+  logger.debug('[Detector] Starting detection for language:', language);
+
+  let signals: DetectorSignal[] = [];
+
+  // ===== انتخاب روش تشخیص =====
+  const isJsTs = ['javascript', 'typescript', 'js', 'ts'].includes(language.toLowerCase());
+
+  if (isJsTs) {
+    logger.debug('[Detector] Using AST-based detection for JS/TS');
+    signals = detectWithAST(code, language);
+  } else {
+    logger.debug('[Detector] Using regex-based detection for', language);
+    signals = detectWithRegex(code, language);
+  }
+
+  // ===== حذف سیگنال‌های تکراری =====
   const uniqueSignals = signals.filter(
     (s, idx, self) => idx === self.findIndex((t) => t.type === s.type && t.line === s.line)
   );
@@ -108,6 +283,9 @@ export function detectConcurrencySignals(
 
   const totalWeight = uniqueSignals.reduce((sum, s) => sum + s.weight, 0);
   const requiresConcurrencyAudit = totalWeight >= ANALYSIS_CONFIG.concurrencyThreshold;
+
+  const duration = Date.now() - startTime;
+  logger.debug('[Detector] Detection completed in', duration, 'ms, signals:', uniqueSignals.length, 'totalWeight:', totalWeight);
 
   return {
     requiresConcurrencyAudit,
