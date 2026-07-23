@@ -52,7 +52,7 @@ export type {
 };
 
 // ============================================================
-// 🔥 تایپ‌های Legacy (برای سازگاری با عقب)
+// 🔥 تایپ‌های Legacy (برای سازگاری با عقب و UI)
 // ============================================================
 
 export interface LegacyScorecard {
@@ -113,6 +113,20 @@ export interface LegacyRecommendedImprovement {
   improvement: string;
   reason: string;
 }
+
+// ============================================================
+// 🔥 Exportهای Legacy با نام‌های اصلی (برای سازگاری با UI)
+// ============================================================
+
+export type CodeWalkthroughItem = LegacyCodeWalkthroughItem;
+export type BugAndRiskyCase = LegacyBugAndRiskyCase;
+export type EdgeCase = LegacyEdgeCase;
+export type PerformanceAnalysis = LegacyPerformanceAnalysis;
+export type SecurityAnalysis = LegacySecurityAnalysis;
+export type ProductionReadiness = LegacyProductionReadiness;
+export type RecommendedImprovement = LegacyRecommendedImprovement;
+export type SuggestedTest = LegacySuggestedTest;
+export type ScorecardLegacy = LegacyScorecard;
 
 // ============================================================
 // 🔥 Snippet Schema (برای اعتبارسنجی داده‌های دیتابیس)
@@ -294,3 +308,35 @@ export interface AppState {
   toastMessage: string | null;
   promptInfo: PromptInfo | null;
 }
+
+// ============================================================
+// 🔥 Export تایپ‌های مورد نیاز توسط app/page.tsx
+// ============================================================
+
+// این exportها برای سازگاری با صفحه اصلی اضافه شده‌اند
+// و به تایپ‌های Legacy اشاره می‌کنند
+export type { 
+  LegacyCodeWalkthroughItem,
+  LegacyBugAndRiskyCase,
+  LegacyEdgeCase,
+  LegacyPerformanceAnalysis,
+  LegacySecurityAnalysis,
+  LegacyProductionReadiness,
+  LegacyRecommendedImprovement,
+  LegacySuggestedTest,
+  LegacyScorecard,
+};
+
+// همچنین برای راحتی، نام‌های کوتاه‌تر را نیز صادر می‌کنیم
+// که همان تایپ‌های Legacy هستند
+export type { 
+  LegacyCodeWalkthroughItem as CodeWalkthroughItem,
+  LegacyBugAndRiskyCase as BugAndRiskyCase,
+  LegacyEdgeCase as EdgeCase,
+  LegacyPerformanceAnalysis as PerformanceAnalysis,
+  LegacySecurityAnalysis as SecurityAnalysis,
+  LegacyProductionReadiness as ProductionReadiness,
+  LegacyRecommendedImprovement as RecommendedImprovement,
+  LegacySuggestedTest as SuggestedTest,
+  LegacyScorecard as ScorecardLegacy,
+};
