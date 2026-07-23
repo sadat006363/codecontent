@@ -436,9 +436,10 @@ export default function AnalysisTab({
         {/* ===== Verdict ===== */}
         {fullAnalysis.verdict && (
           <div className={`p-4 rounded-lg border ${
-            fullAnalysis.verdict.status === 'production-ready-with-monitoring' ? 'bg-green-50 border-green-200' :
+            fullAnalysis.verdict.status === 'approved' || fullAnalysis.verdict.status === 'approved-with-suggestions' ? 'bg-green-50 border-green-200' :
             fullAnalysis.verdict.status === 'requires-minor-changes' ? 'bg-yellow-50 border-yellow-200' :
             fullAnalysis.verdict.status === 'requires-major-changes' ? 'bg-orange-50 border-orange-200' :
+            fullAnalysis.verdict.status === 'requires-changes' ? 'bg-orange-50 border-orange-200' :
             'bg-red-50 border-red-200'
           }`}>
             <h3 className="font-semibold text-[#1a1a2e]">🏁 Verdict</h3>
