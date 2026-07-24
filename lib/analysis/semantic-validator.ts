@@ -155,7 +155,6 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
 
   const { available, code, notes } = result.improvedCode;
 
-  // وقتی available === true باشد، code باید یک رشته غیرخالی باشد
   if (available) {
     if (typeof code !== 'string' || code.trim().length === 0) {
       issues.push({
@@ -165,10 +164,7 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
       });
     }
   }
-  // وقتی available === false باشد، Zod قبلاً تضمین کرده که code === null است
-  // بنابراین نیازی به بررسی مجدد نیست.
 
-  // notes: اگر موجود باشد، باید رشته غیرخالی یا null باشد
   if (notes !== undefined && notes !== null && typeof notes === 'string' && notes.trim().length === 0) {
     issues.push({
       code: 'IMPROVED_CODE_MISSING_NOTES',
@@ -245,19 +241,21 @@ function validateScorecardConsistency(result: AdvancedAuditResult): SemanticVali
   const hasCritical = findings.some((f) => f.severity === 'critical');
   const hasHigh = findings.some((f) => f.severity === 'high');
 
-  if (hasCritical && scorecard.productionReadiness?.score > 50) {
+  // 🔥 اصلاح: ابتدا مطمئن شویم که score یک عدد است
+  const prodScore = scorecard.productionReadiness?.score;
+  if (hasCritical && prodScore !== null && typeof prodScore === 'number' && prodScore > 50) {
     issues.push({
       code: 'SCORECARD_INCONSISTENT_CRITICAL',
       path: 'scorecard.productionReadiness.score',
-      message: `Production readiness score ${scorecard.productionReadiness.score} is too high despite critical findings`,
+      message: `Production readiness score ${prodScore} is too high despite critical findings`,
     });
   }
 
-  if (hasHigh && scorecard.productionReadiness?.score > 70) {
+  if (hasHigh && prodScore !== null && typeof prodScore === 'number' && prodScore > 70) {
     issues.push({
       code: 'SCORECARD_INCONSISTENT_HIGH',
       path: 'scorecard.productionReadiness.score',
-      message: `Production readiness score ${scorecard.productionReadiness.score} is too high despite high findings`,
+      message: `Production readiness score ${prodScore} is too high despite high findings`,
     });
   }
 
