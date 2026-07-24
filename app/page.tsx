@@ -188,6 +188,11 @@ export default function HomePage() {
       // ===== Save to database =====
       const saveResult = await snippetService.save(saveData);
 
+      // ===== Check save success =====
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to save snippet');
+      }
+
       // ===== Build Snippet =====
       const snippetData: Snippet = {
         id: saveResult.id,
@@ -204,7 +209,7 @@ export default function HomePage() {
         created_at: new Date().toISOString(),
         username: saveResult.username || normalizedUsername,
         github_username: saveResult.github_username ?? normalizedGithubUsername,
-        avatar_url: saveResult.avatar_url ?? normalizedAvatarUrl,
+        avatar_url: normalizedAvatarUrl, // 🔥 استفاده از مقدار نرمالایز شده
         card_image_url: undefined,
         code_walkthrough: normalized.codeWalkthrough,
         what_works_well: normalized.whatWorksWell,
@@ -220,7 +225,7 @@ export default function HomePage() {
         final_verdict_summary: normalized.finalVerdict?.summary,
         final_verdict_approved: normalized.finalVerdict?.approved,
         final_verdict_next_steps: normalized.finalVerdict?.nextSteps,
-        findings: (genData as any).findings, // may not exist, but keep if present
+        findings: (genData as any).findings,
         execution_overview: (genData as any).executionOverview,
         architectural_observations: (genData as any).architecturalObservations,
         recommended_actions: (genData as any).recommendedActions,
