@@ -69,7 +69,7 @@ async function getSnippet(slug: string): Promise<Snippet> {
     return null as any;
   }
 
-  // 🔥 تبدیل تمام مقادیر null به undefined
+  // 🔥 تبدیل تمام مقادیر null به undefined برای تطابق با SnippetDataSchema
   const candidate = {
     id: data.id ?? '',
     slug: data.slug ?? '',
@@ -89,6 +89,7 @@ async function getSnippet(slug: string): Promise<Snippet> {
     avatar_url: data.avatar_url ?? undefined,
     card_image_url: data.card_image_url ?? undefined,
 
+    // 🔥 Legacy fields – تبدیل null به undefined
     code_walkthrough: data.code_walkthrough ?? undefined,
     what_works_well: data.what_works_well ?? undefined,
     bugs_and_risky_cases: data.bugs_and_risky_cases ?? undefined,
@@ -106,6 +107,7 @@ async function getSnippet(slug: string): Promise<Snippet> {
     line_explanations: data.line_explanations ?? undefined,
     generated_prompt: data.generated_prompt ?? undefined,
 
+    // 🔥 Advanced fields – تبدیل null به undefined
     findings: data.findings ?? undefined,
     execution_overview: data.execution_overview ?? undefined,
     architectural_observations: data.architectural_observations ?? undefined,
