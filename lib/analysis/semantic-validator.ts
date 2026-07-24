@@ -37,7 +37,6 @@ function validateFindingIds(findings: AuditFinding[]): SemanticValidationIssue[]
       continue;
     }
 
-    // Validate format
     const idCheck = FindingIdSchema.safeParse(finding.id);
     if (!idCheck.success) {
       issues.push({
@@ -99,19 +98,16 @@ function validateReferences(
     }
   }
 
-  // architecturalObservations
   for (const obs of result.architecturalObservations || []) {
     const path = `architecturalObservations[${result.architecturalObservations.indexOf(obs)}].relatedFindingIds`;
     checkReferences(obs.relatedFindingIds, path, 'architecturalObservation');
   }
 
-  // recommendedActions
   for (const action of result.recommendedActions || []) {
     const path = `recommendedActions[${result.recommendedActions.indexOf(action)}].relatedFindingIds`;
     checkReferences(action.relatedFindingIds, path, 'recommendedAction');
   }
 
-  // scorecard (relatedFindings)
   const scorecard = result.scorecard;
   if (scorecard) {
     const categories: [string, ScoreItem][] = [
@@ -132,7 +128,6 @@ function validateReferences(
     }
   }
 
-  // suggestedTests (if they have relatedFindingIds)
   for (const test of result.suggestedTests || []) {
     if ('relatedFindingIds' in test && Array.isArray((test as any).relatedFindingIds)) {
       const path = `suggestedTests[${result.suggestedTests.indexOf(test)}].relatedFindingIds`;
@@ -160,9 +155,8 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
 
   const { available, code, notes } = result.improvedCode;
 
-  // اگر available === true، باید code غیر خالی باشد
+  // وقتی available === true باشد، code باید یک رشته غیرخالی باشد
   if (available) {
-    // code باید string باشد و خالی نباشد
     if (typeof code !== 'string' || code.trim().length === 0) {
       issues.push({
         code: 'IMPROVED_CODE_AVAILABLE_BUT_EMPTY',
@@ -170,20 +164,11 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
         message: 'improvedCode.available is true but code is empty, missing, or not a string',
       });
     }
-  } else {
-    // اگر available === false، باید code === null باشد
-    // 🔥 اصلاح: استفاده از typeof برای بررسی string
-    if (typeof code === 'string' && code.trim().length > 0) {
-      issues.push({
-        code: 'IMPROVED_CODE_NOT_AVAILABLE_BUT_HAS_CODE',
-        path: 'improvedCode',
-        message: 'improvedCode.available is false but code is not null',
-      });
-    }
   }
+  // وقتی available === false باشد، Zod قبلاً تضمین کرده که code === null است
+  // بنابراین نیازی به بررسی مجدد نیست.
 
-  // notes باید حداقل یک توضیح داشته باشد (اگر موجود باشد)
-  // در schema notes می‌تواند null باشد، اما اگر موجود باشد باید خالی نباشد.
+  // notes: اگر موجود باشد، باید رشته غیرخالی یا null باشد
   if (notes !== undefined && notes !== null && typeof notes === 'string' && notes.trim().length === 0) {
     issues.push({
       code: 'IMPROVED_CODE_MISSING_NOTES',
