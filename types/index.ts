@@ -193,6 +193,11 @@ const LegacyScorecardSchema = z.object({
  *
  * This schema is used to parse raw rows from Supabase.
  * It is not the normalized Domain model; see PersistedSnippetRow below.
+ *
+ * Note: All fields use .optional() instead of .nullable().optional() because
+ * the application normalizes null values from the database to undefined.
+ * The conversion from null to undefined happens in app/snippet/[slug]/page.tsx
+ * using the `?? undefined` operator.
  */
 export const SnippetDataSchema = z.object({
   // Primary identifiers
@@ -214,59 +219,60 @@ export const SnippetDataSchema = z.object({
   created_at: z.string(),
 
   // User info
-  username: z.string().nullable().optional(),
-  github_username: z.string().nullable().optional(),
-  avatar_url: z.string().nullable().optional(),
-  card_image_url: z.string().nullable().optional(),
+  username: z.string().optional(),
+  github_username: z.string().optional(),
+  avatar_url: z.string().optional(),
+  card_image_url: z.string().optional(),
 
   // ===== Legacy fields (historical rows) =====
-  code_walkthrough: z.array(LegacyCodeWalkthroughItemSchema).nullable().optional(),
-  what_works_well: z.array(z.string()).nullable().optional(),
-  bugs_and_risky_cases: z.array(LegacyBugAndRiskyCaseSchema).nullable().optional(),
-  edge_cases: z.array(LegacyEdgeCaseSchema).nullable().optional(),
-  performance_analysis: LegacyPerformanceAnalysisSchema.nullable().optional(),
-  security_analysis: LegacySecurityAnalysisSchema.nullable().optional(),
-  production_readiness: LegacyProductionReadinessSchema.nullable().optional(),
-  recommended_improvements: z.array(LegacyRecommendedImprovementSchema).nullable().optional(),
-  improved_code: z.string().nullable().optional(),
-  suggested_tests: z.array(LegacySuggestedTestSchema).nullable().optional(),
-  scorecard: LegacyScorecardSchema.nullable().optional(),
-  final_verdict_summary: z.string().nullable().optional(),
-  final_verdict_approved: z.boolean().nullable().optional(),
-  final_verdict_next_steps: z.string().nullable().optional(),
+  // 🔥 تمام .nullable() حذف شد – فقط .optional()
+  code_walkthrough: z.array(LegacyCodeWalkthroughItemSchema).optional(),
+  what_works_well: z.array(z.string()).optional(),
+  bugs_and_risky_cases: z.array(LegacyBugAndRiskyCaseSchema).optional(),
+  edge_cases: z.array(LegacyEdgeCaseSchema).optional(),
+  performance_analysis: LegacyPerformanceAnalysisSchema.optional(),
+  security_analysis: LegacySecurityAnalysisSchema.optional(),
+  production_readiness: LegacyProductionReadinessSchema.optional(),
+  recommended_improvements: z.array(LegacyRecommendedImprovementSchema).optional(),
+  improved_code: z.string().optional(),
+  suggested_tests: z.array(LegacySuggestedTestSchema).optional(),
+  scorecard: LegacyScorecardSchema.optional(),
+  final_verdict_summary: z.string().optional(),
+  final_verdict_approved: z.boolean().optional(),
+  final_verdict_next_steps: z.string().optional(),
 
   // ===== Line explanations (deferred) =====
   // Raw persisted value. Must be normalized via normalizeLineExplanations().
   // Structure: array of { lineNumber, code?, explanation }.
   // See lib/analysis/normalizer.ts for the normalization boundary.
-  line_explanations: z.unknown().nullable().optional(),
+  line_explanations: z.unknown().optional(),
 
   // ===== Generated prompt (simple string) =====
-  generated_prompt: z.string().nullable().optional(),
+  generated_prompt: z.string().optional(),
 
   // ===== Canonical fields (JSONB) =====
   // These store the canonical audit data in snake_case columns.
   // The schemas validate parsed camelCase objects.
   // Precedence: audit_result > exploded fields (enforced by to-snippet.ts).
   // If audit_result is valid and present, it overrides exploded fields.
-  findings: z.array(AuditFindingSchema).nullable().optional(),
-  execution_overview: ExecutionOverviewSchema.nullable().optional(),
-  architectural_observations: z.array(ArchitecturalObservationSchema).nullable().optional(),
-  recommended_actions: z.array(RecommendedActionSchema).nullable().optional(),
-  suggested_tests_new: z.array(SuggestedTestSchema).nullable().optional(),
-  complexity: ComplexitySchema.nullable().optional(),
-  scorecard_new: AuditScorecardSchema.nullable().optional(),
-  verdict: CanonicalVerdictSchema.nullable().optional(),
-  limitations: z.array(z.string()).nullable().optional(),
+  findings: z.array(AuditFindingSchema).optional(),
+  execution_overview: ExecutionOverviewSchema.optional(),
+  architectural_observations: z.array(ArchitecturalObservationSchema).optional(),
+  recommended_actions: z.array(RecommendedActionSchema).optional(),
+  suggested_tests_new: z.array(SuggestedTestSchema).optional(),
+  complexity: ComplexitySchema.optional(),
+  scorecard_new: AuditScorecardSchema.optional(),
+  verdict: CanonicalVerdictSchema.optional(),
+  limitations: z.array(z.string()).optional(),
 
   // ===== Full canonical audit result =====
   // Authoritative source. Exploded fields are transitional projections.
   // Mapper implementation: lib/analysis/to-snippet.ts (toSnippetInsert)
   // Precedence logic: if audit_result is valid, use it; otherwise fall back to exploded fields.
-  audit_result: AdvancedAuditResultSchema.nullable().optional(),
+  audit_result: AdvancedAuditResultSchema.optional(),
 
   // ===== Debug/diagnostic (unstructured) =====
-  debug_trace: z.unknown().nullable().optional(),
+  debug_trace: z.unknown().optional(),
 });
 
 // Persistence row type (raw Supabase row)
@@ -315,7 +321,7 @@ export const LegacyGenerateResponseSchema = z.object({
     approved: z.boolean(),
     nextSteps: z.string().optional(),
   }).optional(),
-  linkedin_post: z.string().optional(), // 🔥 اضافه شد
+  linkedin_post: z.string().optional(),
   error: z.string().optional(),
 });
 
