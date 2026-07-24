@@ -44,7 +44,7 @@ export function toSnippetInsert(
     optimization: audit.recommendedActions?.length
       ? audit.recommendedActions.map((a) => a.title).join('; ')
       : '-',
-    linkedin_post: 'Check out this code analysis! #Zbloue', // مقدار ثابت چون در audit وجود ندارد
+    linkedin_post: audit.linkedin_post || 'Check out this code analysis! #Zbloue',
 
     // ===== فیلدهای کاربر =====
     username: context.username ?? null,
@@ -54,6 +54,7 @@ export function toSnippetInsert(
     is_public: context.isPublic ?? true,
 
     created_at: now,
+    schema_version: '1.0',
 
     // ===== فیلدهای Legacy (برای سازگاری) =====
     code_walkthrough: null,
@@ -72,7 +73,6 @@ export function toSnippetInsert(
     final_verdict_next_steps: null,
 
     // ===== فیلدهای Advanced (JSONB) =====
-    // کستینگ به any جهت جلوگیری از خطای ناسازگاری ساختار با نوع جنریک Json در Supabase types
     findings: (audit.findings || null) as any,
     execution_overview: (audit.executionOverview || null) as any,
     architectural_observations: (audit.architecturalObservations || null) as any,
@@ -118,14 +118,22 @@ export function snippetRowToAudit(row: SnippetRow): AdvancedAuditResult | null {
 }
 
 /**
- * تبدیل Legacy Snippet به AdvancedAuditResult
+ * تبدیل Legacy Snippet به AdvancedAuditResult (با رعایت اسکیماهای جدید)
  */
 export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | null {
   try {
+    const hasConcurrency = row.execution_overview && 
+      (row.execution_overview.entryPoints?.length > 0 ||
+       row.execution_overview.taskSubmissionPoints?.length > 0 ||
+       row.execution_overview.blockingWaitPoints?.length > 0);
+
+    // 🔥 اصلاح: auditType باید 'comprehensive' باشد
     const audit: Partial<AdvancedAuditResult> = {
       schemaVersion: '1.0',
-      auditType: row.execution_overview ? 'concurrency' : 'generic',
-      status: 'complete',
+      auditType: 'comprehensive',
+      appliedSpecializations: hasConcurrency ? ['concurrency'] : [],
+      completionStatus: 'complete',
+      repairApplied: false,
       language: row.language || 'unknown',
       summary: row.key_concept || '',
       executionOverview: row.execution_overview || { 
@@ -146,7 +154,7 @@ export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | n
         assumptions: [] 
       },
       limitations: row.limitations || [],
-      linkedin_post: '', // فیلد اجباری در schema اما در Legacy وجود ندارد
+      linkedin_post: row.linkedin_post || '',
     };
 
     // ===== improvedCode =====
@@ -180,54 +188,49 @@ export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | n
         overall?: number;
       };
       
-      // مپ کردن امتیازهای قدیمی (10-0) به مدل جدید (100-0) با فیلدهای واقعی Legacy
       audit.scorecard = {
         correctness: { 
+          applicable: true,
           score: (legacy.correctness ?? 0) * 10, 
           reason: 'Migrated from legacy correctness', 
           relatedFindings: [] 
         },
-        readability: { 
-          score: (legacy.readability ?? 0) * 10, 
-          reason: 'Migrated from legacy readability', 
+        concurrencySafety: { 
+          applicable: true,
+          score: (legacy.security ?? 0) * 10, 
+          reason: 'Migrated from legacy security', 
           relatedFindings: [] 
         },
-        performance: { 
-          score: (legacy.performance ?? 0) * 10, 
-          reason: 'Migrated from legacy performance', 
+        liveness: { 
+          applicable: true,
+          score: (legacy.overall ?? 0) * 10, 
+          reason: 'Migrated from legacy overall', 
+          relatedFindings: [] 
+        },
+        errorHandling: { 
+          applicable: true,
+          score: (legacy.overall ?? 0) * 10, 
+          reason: 'Migrated from legacy overall', 
+          relatedFindings: [] 
+        },
+        resourceManagement: { 
+          applicable: true,
+          score: (legacy.overall ?? 0) * 10, 
+          reason: 'Migrated from legacy overall', 
           relatedFindings: [] 
         },
         maintainability: { 
+          applicable: true,
           score: (legacy.maintainability ?? 0) * 10, 
           reason: 'Migrated from legacy maintainability', 
           relatedFindings: [] 
         },
         productionReadiness: { 
+          applicable: true,
           score: (legacy.productionReadiness ?? 0) * 10, 
           reason: 'Migrated from legacy productionReadiness', 
           relatedFindings: [] 
         },
-        // فیلدهای جدید canonical با مقادیر پیش‌فرض
-        concurrencySafety: { 
-          score: (legacy.security ?? legacy.overall ?? 0) * 10, 
-          reason: 'Default from legacy security/overall', 
-          relatedFindings: [] 
-        },
-        liveness: { 
-          score: (legacy.overall ?? 0) * 10, 
-          reason: 'Default from legacy overall', 
-          relatedFindings: [] 
-        },
-        errorHandling: { 
-          score: (legacy.overall ?? 0) * 10, 
-          reason: 'Default from legacy overall', 
-          relatedFindings: [] 
-        },
-        resourceManagement: { 
-          score: (legacy.overall ?? 0) * 10, 
-          reason: 'Default from legacy overall', 
-          relatedFindings: [] 
-        }
       };
     }
 
@@ -239,7 +242,43 @@ export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | n
         status: row.final_verdict_approved ? 'approved' : 'requires-changes',
         explanation: row.final_verdict_summary || 'Legacy verdict',
       };
+    } else {
+      // مقدار پیش‌فرض
+      audit.verdict = {
+        status: 'requires-changes',
+        explanation: 'Legacy record without verdict data',
+      };
     }
+
+    // ===== analysisCoverage =====
+    // برای داده‌های Legacy، یک coverage پیش‌فرض با تمام ابعاد 'analyzed' می‌سازیم
+    const coverageDimensions = [
+      'correctness',
+      'security',
+      'concurrency',
+      'liveness',
+      'performance',
+      'resource-management',
+      'error-handling',
+      'input-validation',
+      'data-integrity',
+      'api-design',
+      'architecture',
+      'maintainability',
+      'testability',
+      'observability',
+      'compatibility',
+    ];
+
+    audit.analysisCoverage = coverageDimensions.map((dim) => ({
+      dimension: dim,
+      status: dim === 'concurrency' && !hasConcurrency ? 'not-applicable' : 'analyzed',
+      summary: `Analysis of ${dim} dimension.`,
+      limitation: null,
+    }));
+
+    // ===== title =====
+    audit.title = row.card_title || 'Code Analysis Report';
 
     // ===== اعتبارسنجی نهایی با Zod Schema کانونیکال =====
     const result = AdvancedAuditResultSchema.safeParse(audit);
