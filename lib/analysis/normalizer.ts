@@ -25,7 +25,6 @@ import {
   type ArchitecturalObservation,
   type SuggestedTest,
   type ExecutionOverview,
-  type Mechanism,
 } from '@/lib/analysis/schema';
 
 import logger from '@/lib/logger';
@@ -36,6 +35,7 @@ import logger from '@/lib/logger';
 
 type CompletionStatus = z.infer<typeof CompletionStatusSchema>;
 type AppliedSpecialization = z.infer<typeof SpecializationSchema>;
+type Mechanism = z.infer<typeof MechanismSchema>;
 
 // ============================================================
 // Constants
@@ -463,7 +463,7 @@ function normalizeFinding(finding: unknown, index: number, usedIds: Set<string>)
   const legacyCategory = getSafeString(f.category ?? f.type, 'other');
   const broadCategory = mapToBroadCategory(legacyCategory);
   
-  // 🔥 Extract and validate mechanisms
+  // Extract and validate mechanisms
   const rawMechanisms = extractMechanisms(f);
   const validMechanisms: Mechanism[] = rawMechanisms
     .filter((m): m is Mechanism => {
