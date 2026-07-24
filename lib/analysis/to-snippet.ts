@@ -251,7 +251,7 @@ export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | n
     }
 
     // ===== analysisCoverage =====
-    // برای داده‌های Legacy، یک coverage پیش‌فرض با تمام ابعاد 'analyzed' می‌سازیم
+    // 🔥 اصلاح: استفاده از `as const` برای تطابق با نوع دقیق
     const coverageDimensions = [
       'correctness',
       'security',
@@ -268,10 +268,12 @@ export function legacyRowToAudit(row: SnippetRow | any): AdvancedAuditResult | n
       'testability',
       'observability',
       'compatibility',
-    ];
+    ] as const;
+
+    type CoverageDimension = typeof coverageDimensions[number];
 
     audit.analysisCoverage = coverageDimensions.map((dim) => ({
-      dimension: dim,
+      dimension: dim as CoverageDimension,
       status: dim === 'concurrency' && !hasConcurrency ? 'not-applicable' : 'analyzed',
       summary: `Analysis of ${dim} dimension.`,
       limitation: null,
