@@ -122,7 +122,7 @@ const LegacyCodeWalkthroughItemSchema = z.object({
 const LegacyBugAndRiskyCaseSchema = z.object({
   issue: z.string(),
   impact: z.string(),
-  example: z.string().optional(),
+  example: z.string().optional(), // 🔥 optional to match actual data
 });
 
 const LegacyEdgeCaseSchema = z.object({
@@ -194,10 +194,8 @@ const LegacyScorecardSchema = z.object({
  * This schema is used to parse raw rows from Supabase.
  * It is not the normalized Domain model; see PersistedSnippetRow below.
  *
- * Note: All fields use .optional() instead of .nullable().optional() because
- * the application normalizes null values from the database to undefined.
- * The conversion from null to undefined happens in app/snippet/[slug]/page.tsx
- * using the `?? undefined` operator.
+ * All fields use .optional() – null values from the database are converted to
+ * undefined in the read path (app/snippet/[slug]/page.tsx) using `?? undefined`.
  */
 export const SnippetDataSchema = z.object({
   // Primary identifiers
@@ -225,7 +223,6 @@ export const SnippetDataSchema = z.object({
   card_image_url: z.string().optional(),
 
   // ===== Legacy fields (historical rows) =====
-  // 🔥 تمام .nullable() حذف شد – فقط .optional()
   code_walkthrough: z.array(LegacyCodeWalkthroughItemSchema).optional(),
   what_works_well: z.array(z.string()).optional(),
   bugs_and_risky_cases: z.array(LegacyBugAndRiskyCaseSchema).optional(),
@@ -242,19 +239,12 @@ export const SnippetDataSchema = z.object({
   final_verdict_next_steps: z.string().optional(),
 
   // ===== Line explanations (deferred) =====
-  // Raw persisted value. Must be normalized via normalizeLineExplanations().
-  // Structure: array of { lineNumber, code?, explanation }.
-  // See lib/analysis/normalizer.ts for the normalization boundary.
   line_explanations: z.unknown().optional(),
 
   // ===== Generated prompt (simple string) =====
   generated_prompt: z.string().optional(),
 
   // ===== Canonical fields (JSONB) =====
-  // These store the canonical audit data in snake_case columns.
-  // The schemas validate parsed camelCase objects.
-  // Precedence: audit_result > exploded fields (enforced by to-snippet.ts).
-  // If audit_result is valid and present, it overrides exploded fields.
   findings: z.array(AuditFindingSchema).optional(),
   execution_overview: ExecutionOverviewSchema.optional(),
   architectural_observations: z.array(ArchitecturalObservationSchema).optional(),
@@ -266,9 +256,6 @@ export const SnippetDataSchema = z.object({
   limitations: z.array(z.string()).optional(),
 
   // ===== Full canonical audit result =====
-  // Authoritative source. Exploded fields are transitional projections.
-  // Mapper implementation: lib/analysis/to-snippet.ts (toSnippetInsert)
-  // Precedence logic: if audit_result is valid, use it; otherwise fall back to exploded fields.
   audit_result: AdvancedAuditResultSchema.optional(),
 
   // ===== Debug/diagnostic (unstructured) =====
@@ -285,15 +272,16 @@ export type PersistedSnippetRow = z.infer<typeof SnippetDataSchema>;
  */
 export type Snippet = PersistedSnippetRow;
 
+/**
+ * Alias for Snippet to match component expectations.
+ * Some UI components (e.g., SnippetFullAnalysis) reference this type.
+ */
+export type SnippetData = Snippet;
+
 // ============================================================
 // 9. Legacy generate response (historical API shape)
 // ============================================================
 
-/**
- * Runtime schema for the legacy generate API response.
- * Used to validate incoming responses at the service boundary.
- * This schema is strictly legacy; no canonical shapes are allowed.
- */
 export const LegacyGenerateResponseSchema = z.object({
   analysis: z.string().optional(),
   card_title: z.string().optional(),
@@ -325,18 +313,6 @@ export const LegacyGenerateResponseSchema = z.object({
   error: z.string().optional(),
 });
 
-/**
- * Legacy generate response type (derived from runtime schema).
- * Models the actual current API response from /api/generate.
- *
- * Verified wire keys from repository search:
- * - analysis, card_title, key_concept, what_this_code_does, debug_analysis, optimization
- * - codeWalkthrough, whatWorksWell, bugsAndRiskyCases, edgeCases
- * - performanceAnalysis, securityAnalysis, productionReadiness
- * - recommendedImprovements, improvedCode
- * - suggestedTests, scorecard
- * - linkedin_post, finalVerdict, error
- */
 export type LegacyGenerateResponse = z.infer<typeof LegacyGenerateResponseSchema>;
 
 // ============================================================
@@ -423,14 +399,6 @@ export interface AppState {
 // 13. Future canonical API contract (not yet active)
 // ============================================================
 
-/**
- * Target API contract for the canonical analysis pipeline.
- * Not currently used; the active contract is LegacyGenerateResponse.
- *
- * When activated, define a z.discriminatedUnion runtime schema and derive
- * the TypeScript type from it.
- * Migrate route, service, state, UI, tests, mocks, and fixtures atomically.
- */
 export type CanonicalGenerateResponse =
   | {
       success: true;
