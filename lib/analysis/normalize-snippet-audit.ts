@@ -78,7 +78,7 @@ export function normalizeSnippetAudit(row: any): NormalizedSnippetAudit {
           hasFullAnalysis: true,
           findingsCount: validation.data.findings?.length || 0,
           verdictStatus: validation.data.verdict?.status,
-          overallScore: validation.data.scorecard?.productionReadiness?.score,
+          overallScore: validation.data.scorecard?.productionReadiness?.score ?? undefined, // 🔥 null → undefined
           linkedinPost: validation.data.linkedin_post,
           summary: validation.data.summary,
         };
@@ -98,7 +98,6 @@ export function normalizeSnippetAudit(row: any): NormalizedSnippetAudit {
   }
 
   // 2. Fallback به داده‌های Legacy
-  // 🔥 اصلاح: اگر legacyRowToAudit null برگرداند، به جای آن یک آبجکت خالی استفاده کن
   const legacyAudit = legacyRowToAudit(row);
   const hasLegacyData = legacyAudit !== null && Object.keys(legacyAudit).length > 0;
 
@@ -109,6 +108,7 @@ export function normalizeSnippetAudit(row: any): NormalizedSnippetAudit {
       hasFullAnalysis: true,
       findingsCount: legacyAudit.findings?.length || 0,
       verdictStatus: legacyAudit.verdict?.status,
+      overallScore: (legacyAudit as any).scorecard?.productionReadiness?.score ?? undefined,
       linkedinPost: legacyAudit.linkedin_post || row.linkedin_post,
       summary: legacyAudit.summary,
     };
