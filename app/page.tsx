@@ -81,10 +81,13 @@ function buildPromptInfo(
   data: LegacyGenerateResponse,
   pipelineStatus: 'completed' | 'failed' | 'fallback' = 'completed'
 ): PromptInfo {
-  // Try to detect if concurrency was applied
+  // Try to detect if concurrency was applied using legacy fields
   const hasConcurrency = data.analysis?.toLowerCase().includes('concurrency') ||
-    data.findings?.some((f: any) => f?.category?.toLowerCase().includes('concurrency')) ||
-    data.bugsAndRiskyCases?.some((b: any) => b.issue?.toLowerCase().includes('thread') || b.issue?.toLowerCase().includes('deadlock'));
+    data.bugsAndRiskyCases?.some((b: any) => 
+      b.issue?.toLowerCase().includes('thread') || 
+      b.issue?.toLowerCase().includes('deadlock')
+    ) ||
+    false;
 
   return {
     mode,
@@ -217,15 +220,15 @@ export default function HomePage() {
         final_verdict_summary: normalized.finalVerdict?.summary,
         final_verdict_approved: normalized.finalVerdict?.approved,
         final_verdict_next_steps: normalized.finalVerdict?.nextSteps,
-        findings: genData.findings,
-        execution_overview: genData.executionOverview,
-        architectural_observations: genData.architecturalObservations,
-        recommended_actions: genData.recommendedActions,
-        suggested_tests_new: genData.suggestedTests,
-        complexity: genData.complexity,
-        scorecard_new: genData.scorecard,
-        verdict: genData.verdict,
-        limitations: genData.limitations,
+        findings: (genData as any).findings, // may not exist, but keep if present
+        execution_overview: (genData as any).executionOverview,
+        architectural_observations: (genData as any).architecturalObservations,
+        recommended_actions: (genData as any).recommendedActions,
+        suggested_tests_new: (genData as any).suggestedTests,
+        complexity: (genData as any).complexity,
+        scorecard_new: (genData as any).scorecard,
+        verdict: (genData as any).verdict,
+        limitations: (genData as any).limitations,
         audit_result: genData as any,
         debug_trace: (genData as any).debug_trace,
         line_explanations: undefined,
