@@ -1,50 +1,22 @@
 // lib/analysis/semantic-validator.ts
 
 import { AdvancedAuditResult, AuditFinding, ScoreItem } from './schema';
+import { FindingIdSchema } from './schema';
 import logger from '@/lib/logger';
 
 /**
  * نتیجه اعتبارسنجی معنایی
  */
 export interface SemanticValidationResult {
-  /**
-   * آیا کل ساختار از نظر معنایی معتبر است؟
-   */
   isValid: boolean;
-
-  /**
-   * لیست خطاها (مشکلاتی که باعث رد شدن می‌شوند)
-   */
   errors: SemanticValidationIssue[];
-
-  /**
-   * لیست هشدارها (مشکلاتی که باعث رد شدن نمی‌شوند ولی نیاز به توجه دارند)
-   */
   warnings: SemanticValidationIssue[];
 }
 
-/**
- * یک مورد اعتبارسنجی معنایی
- */
 export interface SemanticValidationIssue {
-  /**
-   * کد خطا (برای شناسایی)
-   */
   code: string;
-
-  /**
-   * مسیر در ساختار داده (مثلاً 'findings[0].id')
-   */
   path: string;
-
-  /**
-   * پیام توضیحی
-   */
   message: string;
-
-  /**
-   * شناسه‌های مرتبط (در صورت وجود)
-   */
   relatedIds?: string[];
 }
 
@@ -61,6 +33,17 @@ function validateFindingIds(findings: AuditFinding[]): SemanticValidationIssue[]
         code: 'MISSING_FINDING_ID',
         path: 'findings',
         message: 'Finding is missing an id field',
+      });
+      continue;
+    }
+
+    // Validate format
+    const idCheck = FindingIdSchema.safeParse(finding.id);
+    if (!idCheck.success) {
+      issues.push({
+        code: 'INVALID_FINDING_ID_FORMAT',
+        path: `findings[${findings.indexOf(finding)}].id`,
+        message: `Finding ID "${finding.id}" does not match required format F-\\d{3,}`,
       });
       continue;
     }
@@ -97,9 +80,6 @@ function validateReferences(
   const issues: SemanticValidationIssue[] = [];
   const validFindingIds = getFindingIds(findings);
 
-  /**
-   * بررسی یک آرایه از references
-   */
   function checkReferences(
     refs: string[] | undefined,
     contextPath: string,
@@ -119,19 +99,19 @@ function validateReferences(
     }
   }
 
-  // 1. architecturalObservations
+  // architecturalObservations
   for (const obs of result.architecturalObservations || []) {
     const path = `architecturalObservations[${result.architecturalObservations.indexOf(obs)}].relatedFindingIds`;
     checkReferences(obs.relatedFindingIds, path, 'architecturalObservation');
   }
 
-  // 2. recommendedActions
+  // recommendedActions
   for (const action of result.recommendedActions || []) {
     const path = `recommendedActions[${result.recommendedActions.indexOf(action)}].relatedFindingIds`;
     checkReferences(action.relatedFindingIds, path, 'recommendedAction');
   }
 
-  // 3. scorecard (relatedFindings)
+  // scorecard (relatedFindings)
   const scorecard = result.scorecard;
   if (scorecard) {
     const categories: [string, ScoreItem][] = [
@@ -152,7 +132,7 @@ function validateReferences(
     }
   }
 
-  // 4. suggestedTests (اگر relatedFindingIds داشته باشد)
+  // suggestedTests (if they have relatedFindingIds)
   for (const test of result.suggestedTests || []) {
     if ('relatedFindingIds' in test && Array.isArray((test as any).relatedFindingIds)) {
       const path = `suggestedTests[${result.suggestedTests.indexOf(test)}].relatedFindingIds`;
@@ -182,16 +162,18 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
 
   // اگر available === true، باید code غیر خالی باشد
   if (available) {
-    if (!code || code.trim().length === 0) {
+    // code باید string باشد و خالی نباشد
+    if (typeof code !== 'string' || code.trim().length === 0) {
       issues.push({
         code: 'IMPROVED_CODE_AVAILABLE_BUT_EMPTY',
         path: 'improvedCode',
-        message: 'improvedCode.available is true but code is empty or missing',
+        message: 'improvedCode.available is true but code is empty, missing, or not a string',
       });
     }
   } else {
     // اگر available === false، باید code === null باشد
-    if (code !== null && code !== undefined && code.trim().length > 0) {
+    // 🔥 اصلاح: استفاده از typeof برای بررسی string
+    if (typeof code === 'string' && code.trim().length > 0) {
       issues.push({
         code: 'IMPROVED_CODE_NOT_AVAILABLE_BUT_HAS_CODE',
         path: 'improvedCode',
@@ -200,12 +182,13 @@ function validateImprovedCode(result: AdvancedAuditResult): SemanticValidationIs
     }
   }
 
-  // notes باید حداقل یک توضیح داشته باشد
-  if (!notes || notes.trim().length === 0) {
+  // notes باید حداقل یک توضیح داشته باشد (اگر موجود باشد)
+  // در schema notes می‌تواند null باشد، اما اگر موجود باشد باید خالی نباشد.
+  if (notes !== undefined && notes !== null && typeof notes === 'string' && notes.trim().length === 0) {
     issues.push({
       code: 'IMPROVED_CODE_MISSING_NOTES',
       path: 'improvedCode.notes',
-      message: 'improvedCode.notes is required and must not be empty',
+      message: 'improvedCode.notes is present but empty',
     });
   }
 
@@ -233,7 +216,6 @@ function validateVerdictConsistency(result: AdvancedAuditResult): SemanticValida
   const hasCritical = findings.some((f) => f.severity === 'critical');
   const hasHigh = findings.some((f) => f.severity === 'high');
 
-  // اگر finding critical وجود دارد، verdict نباید approved یا requires-minor-changes باشد
   if (hasCritical) {
     if (verdict.status === 'approved' || verdict.status === 'approved-with-suggestions' || verdict.status === 'requires-minor-changes') {
       issues.push({
@@ -245,7 +227,6 @@ function validateVerdictConsistency(result: AdvancedAuditResult): SemanticValida
     }
   }
 
-  // اگر finding high وجود دارد، verdict نباید approved باشد
   if (hasHigh && verdict.status === 'approved') {
     issues.push({
       code: 'VERDICT_INCONSISTENT_HIGH',
@@ -276,11 +257,9 @@ function validateScorecardConsistency(result: AdvancedAuditResult): SemanticVali
     return issues;
   }
 
-  // بررسی اینکه آیا امتیازات با شدت یافته‌ها تناقض دارند
   const hasCritical = findings.some((f) => f.severity === 'critical');
   const hasHigh = findings.some((f) => f.severity === 'high');
 
-  // اگر critical وجود دارد، امتیاز productionReadiness نباید بالاتر از ۵۰ باشد
   if (hasCritical && scorecard.productionReadiness?.score > 50) {
     issues.push({
       code: 'SCORECARD_INCONSISTENT_CRITICAL',
@@ -289,7 +268,6 @@ function validateScorecardConsistency(result: AdvancedAuditResult): SemanticVali
     });
   }
 
-  // اگر high وجود دارد، امتیاز productionReadiness نباید بالاتر از ۷۰ باشد
   if (hasHigh && scorecard.productionReadiness?.score > 70) {
     issues.push({
       code: 'SCORECARD_INCONSISTENT_HIGH',
@@ -307,7 +285,6 @@ function validateScorecardConsistency(result: AdvancedAuditResult): SemanticVali
 function validateDuplicateReferences(result: AdvancedAuditResult): SemanticValidationIssue[] {
   const issues: SemanticValidationIssue[] = [];
 
-  // بررسی duplicate در recommendedActions
   for (const action of result.recommendedActions || []) {
     if (action.relatedFindingIds && action.relatedFindingIds.length > 0) {
       const seen = new Set<string>();
@@ -325,7 +302,6 @@ function validateDuplicateReferences(result: AdvancedAuditResult): SemanticValid
     }
   }
 
-  // بررسی duplicate در architecturalObservations
   for (const obs of result.architecturalObservations || []) {
     if (obs.relatedFindingIds && obs.relatedFindingIds.length > 0) {
       const seen = new Set<string>();
@@ -353,31 +329,24 @@ export function validateSemanticIntegrity(result: AdvancedAuditResult): Semantic
   const errors: SemanticValidationIssue[] = [];
   const warnings: SemanticValidationIssue[] = [];
 
-  // 1. یکتایی Finding IDs
   const idIssues = validateFindingIds(result.findings || []);
   errors.push(...idIssues);
 
-  // 2. اعتبارسنجی ارجاعات (References)
   const refIssues = validateReferences(result.findings || [], result);
   errors.push(...refIssues);
 
-  // 3. improvedCode
   const codeIssues = validateImprovedCode(result);
   errors.push(...codeIssues);
 
-  // 4. Verdict consistency
   const verdictIssues = validateVerdictConsistency(result);
-  warnings.push(...verdictIssues); // به‌عنوان هشدار (نه خطا) برای جلوگیری از رد شدن
+  warnings.push(...verdictIssues);
 
-  // 5. Scorecard consistency
   const scorecardIssues = validateScorecardConsistency(result);
   warnings.push(...scorecardIssues);
 
-  // 6. Duplicate references
   const duplicateIssues = validateDuplicateReferences(result);
   warnings.push(...duplicateIssues);
 
-  // 7. بررسی اینکه آیا summary و findings با هم تناقض دارند
   if (result.summary && result.summary.includes('no issues') && (result.findings || []).length > 0) {
     warnings.push({
       code: 'SUMMARY_FINDINGS_MISMATCH',
@@ -393,9 +362,6 @@ export function validateSemanticIntegrity(result: AdvancedAuditResult): Semantic
   };
 }
 
-/**
- * ثبت خطاهای معنایی در لاگ
- */
 export function logSemanticValidationResult(
   result: SemanticValidationResult,
   requestId?: string
